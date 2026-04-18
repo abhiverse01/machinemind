@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { useChatStore } from '@/store/chat'
 import { classifyInput } from '@/lib/nlp/classifier'
 import { RULES } from '@/lib/nlp/rules'
@@ -10,27 +10,77 @@ import { contextMemory } from '@/lib/memory/context'
 import { executeTool, executeChain } from '@/lib/tools/registry'
 import { sysInfoState } from '@/lib/tools/sysinfo'
 import { memoryStore } from '@/lib/tools/memory'
-import type { Message, Tone, ChatStore } from '@/lib/types'
+import { GibberishParser } from '@/lib/nlp/gibberish'
+import { FuzzyMatcher } from '@/lib/nlp/fuzzy'
+import { ImplicitFactExtractor } from '@/lib/nlp/implicitFacts'
+import { ValueExtractor } from '@/lib/nlp/valueExtractor'
+import type { Message, Tone, ToolResult, ConversationState } from '@/lib/types'
 
-type StoreApi = ChatStore
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
+type StoreApi = ReturnType<typeof useChatStore.getState>
 
 export function useChat() {
-  const store = useChatStore()
-  const abortRef = useRef<AbortController | null>(null)
+  const isStreaming = useChatStore((s) => s.isStreaming)
 
   const send = useCallback(
     async (input: string) => {
+      const store = useChatStore.getState()
       if (!input.trim() || store.isStreaming) return
 
       const trimmed = input.trim()
+      const charCount = trimmed.length
 
-      // 1. Add user message
+      // ── v5.0 Step 1: Paste / Document detection ─────────────
+      const newlineCount = (trimmed.match(/\n/g) ?? []).length
+      const hasJSONBlock = /^\s*[\[{]/.test(trimmed) && /[\]}]\s*$/.test(trimmed)
+      const hasCodeBlock = /```/.test(trimmed)
+      const isDocMode = charCount > 200 || newlineCount >= 3 || hasJSONBlock || hasCodeBlock
+
+      // ── v5.0 Step 2: GibberishParser.parse ──────────────────
+      const parsedInput = GibberishParser.parse(trimmed)
+
+      // ── v5.0 Step 3: ImplicitFactExtractor.extract → store ──
+      const implicitFacts = ImplicitFactExtractor.extract(trimmed)
+      for (const fact of implicitFacts) {
+        store.addImplicitFact(fact.key, fact.value)
+      }
+
+      // ── v5.0 Step 4: FuzzyMatcher.correctSentence ───────────
+      const fuzzyTokens = parsedInput.cleaned.split(/\s+/).filter(Boolean)
+      const { tokens: correctedTokens, corrections: fuzzyCorrections } = FuzzyMatcher.correctSentence(fuzzyTokens)
+
+      // Merge corrections into parsedInput
+      const allCorrections = [...parsedInput.corrections, ...fuzzyCorrections]
+      const correctedCleaned = correctedTokens.join(' ') || trimmed
+      const enrichedParsedInput = {
+        ...parsedInput,
+        corrections: allCorrections,
+        wasCorrected: parsedInput.wasCorrected || fuzzyCorrections.length > 0,
+        cleaned: correctedCleaned,
+      }
+
+      // ── v5.0 Step 5: WorkingMemory.resolve → resolve pronouns
+      let resolvedInput = correctedCleaned
+      const wmResult = store.workingMemory.resolve(correctedCleaned)
+      if (wmResult) {
+        resolvedInput = correctedCleaned.replace(
+      /\b(that|it|this|the result|the value|the previous|the output|the answer|that result|this result|that value|this value)\b/i,
+      wmResult.resolved,
+    )
+        if (resolvedInput === correctedCleaned) {
+          resolvedInput = wmResult.resolved
+        }
+      }
+
+      // ── v5.0 Step 6: ConversationStateMachine.transition ────
+      const tone: Tone = enrichedParsedInput.tone ?? 'neutral'
+      store.updateConversationState(trimmed, tone, charCount)
+
+      // ── v5.0 Step 7: ValueExtractor.extract ─────────────────
+      ValueExtractor.extract(resolvedInput)
+
+      // ── Add user message ────────────────────────────────────
       const userMsg: Message = {
-        id: generateId(),
+        id: crypto.randomUUID(),
         role: 'user',
         content: trimmed,
         displayType: 'text',
@@ -38,17 +88,16 @@ export function useChat() {
       }
       store.addMessage(userMsg)
 
-      // 2. Update context memory
+      // ── Update context memory ───────────────────────────────
       contextMemory.push('user', trimmed)
 
-      // 3. Check for direct ! tool invocation
+      // ── Check for direct ! tool invocation ──────────────────
       if (trimmed.startsWith('!')) {
         const parts = trimmed.slice(1).trim()
         const spaceIdx = parts.indexOf(' ')
         const toolName = spaceIdx === -1 ? parts.toLowerCase() : parts.slice(0, spaceIdx).toLowerCase()
         const toolInput = spaceIdx === -1 ? '' : parts.slice(spaceIdx + 1).trim()
 
-        // Special: !help, !status, !tools → show help info directly
         if (toolName === 'help' || toolName === 'tools') {
           const helpResponse = pickTemplate('HELP_RESPONSE')
           await addAssistantMessage(store, helpResponse, 'text', undefined, undefined, 'neutral')
@@ -64,7 +113,7 @@ export function useChat() {
         return
       }
 
-      // 4. Check for tool chain (pipe syntax)
+      // ── Check for tool chain (pipe syntax) ──────────────────
       if (trimmed.includes('|')) {
         const chainPattern = /\w+\s+[^|]+\|/
         if (chainPattern.test(trimmed)) {
@@ -73,76 +122,100 @@ export function useChat() {
         }
       }
 
-      // 5. Run full NLP pipeline (GibberishParser → FuzzyMatcher → Tokenizer → Classifier)
-      const classification = classifyInput(trimmed, contextMemory.getFlags())
-      const tone: Tone = classification.parsedInput?.tone ?? 'neutral'
+      // ── v5.0 Step 8: Doc mode detection ────────────────────
+      if (isDocMode) {
+        store.setDocModeContent(trimmed)
+        store.setConversationState('DOC_MODE')
 
-      // 6. Update context memory with classification info
+        // Auto-detect tool: JSON → json, long text → wordtools
+        let autoTool = 'wordtools'
+        if (hasJSONBlock) {
+          autoTool = 'json'
+        }
+
+        const lines = (trimmed.match(/\n/g) ?? []).length + 1
+        const docEnter = pickTemplate('DOC_MODE_ENTER', {
+          chars: String(charCount),
+          lines: String(lines),
+          tool: autoTool,
+        })
+        await addAssistantMessage(store, docEnter, 'text', undefined, undefined, tone)
+
+        // Execute the auto-detected tool
+        await handleToolExecution(autoTool, trimmed, store, tone)
+        return
+      }
+
+      // ── v5.0 Step 9: classifyInput with workingMemory + conversationState ──
+      const classification = classifyInput(
+        trimmed,
+        contextMemory.getFlags(),
+        store.workingMemory,
+        store.conversationState,
+      )
+      const classTone: Tone = classification.parsedInput?.tone ?? tone
+
+      // ── Update context memory with classification info ──────
       contextMemory.push('system', `Intent: ${classification.intent}`, {
         classification,
       })
 
-      // 7. Check for follow-up with pronoun resolution
-      if (contextMemory.isFollowUp(trimmed)) {
-        const lastTopic = contextMemory.expandLastTopic()
-        if (lastTopic) {
-          const rawResponse = pickTemplate('FOLLOW_UP', {
-            topic: 'previous topic',
-            detail: lastTopic,
-          })
-          const response = formatWithTone(rawResponse, tone, false)
-          await addAssistantMessage(store, response, 'text', undefined, undefined, tone)
-          return
-        }
+      // ── v5.0: Build implicit fact confirmations ─────────────
+      let factConfirmations = ''
+      if (implicitFacts.length > 0) {
+        const confirms = implicitFacts.map(
+          (f) => pickTemplate('IMPLICIT_FACT_CONFIRM', { key: f.key, value: f.value })
+        )
+        factConfirmations = '\n' + confirms.join('\n')
       }
 
-      // 8. If intent has a tool hint, execute the tool
+      // ── v5.0 Step 10: Route based on classification ────────
+
+      // If intent has a tool hint, execute the tool
       if (classification.toolHint) {
-        await handleToolExecution(classification.toolHint, trimmed, store, tone)
+        await handleToolExecution(classification.toolHint, trimmed, store, classTone, factConfirmations)
         return
       }
 
-      // 9. If mode is 'ai_relay', POST to /api/chat, stream tokens
+      // If mode is 'ai_relay', POST to /api/chat, stream tokens
       if (store.mode === 'ai_relay') {
-        await handleAIRelay(trimmed, store, abortRef, tone, classification.parsedInput)
+        await handleAIRelay(trimmed, store, classTone, enrichedParsedInput, factConfirmations)
         return
       }
 
-      // 10. Rule engine: compose response from templates with personality
-      // When a rule matched, use the rule's response field (specific template key like CONV_NATURAL)
-      // When no rule matched (fallback), use the intent-to-template mapping
+      // Rule engine: compose response from templates with personality
       let templateKey = 'UNKNOWN'
       if (classification.matchedRuleId) {
-        // Look up the matched rule's response field for the specific template key
         const matchedRule = RULES.find(r => r.id === classification.matchedRuleId)
         templateKey = matchedRule?.response ?? getTemplateKeyFromIntent(classification.intent)
       }
 
       const rawResponse = pickTemplate(templateKey)
-      const response = formatWithTone(rawResponse, tone, false)
-      await addAssistantMessage(store, response, 'text', undefined, undefined, tone)
+      const response = formatWithTone(rawResponse + factConfirmations, classTone, false)
+      await addAssistantMessage(store, response, 'text', undefined, undefined, classTone)
 
-      // 11. Update system info state
+      // ── Update system info state ────────────────────────────
       sysInfoState.turnCount = contextMemory.turnCount
       sysInfoState.storedVarsCount = memoryStore.list().length
       sysInfoState.contextFlags = [...contextMemory.getFlags()]
     },
-    [store]
+    [],
   )
 
   const abort = useCallback(() => {
-    abortRef.current?.abort()
-    store.setStreaming(false)
-  }, [store])
+    useChatStore.getState().abortStream()
+  }, [])
 
-  return { send, abort, isStreaming: store.isStreaming }
+  return { send, abort, isStreaming }
 }
 
+// ── Tool Execution Handler ─────────────────────────────────
 async function handleToolExecution(
   toolName: string,
   input: string,
   store: StoreApi,
   tone: Tone,
+  factConfirmations: string = '',
 ) {
   store.setToolStatus(toolName, 'running')
   store.setStreaming(true)
@@ -150,6 +223,15 @@ async function handleToolExecution(
   try {
     const result = await executeTool(toolName, input)
     store.setToolStatus(toolName, result.status === 'ok' ? 'done' : 'error')
+
+    // v5.0: ALWAYS write to working memory after tool execution
+    store.writeWorkingMemory(toolName, result, String(contextMemory.turnCount))
+
+    // v5.0: ALWAYS increment tool frequency
+    store.incrementToolFrequency(toolName)
+
+    // Update working memory snapshot in context memory
+    contextMemory.setWorkingMemorySnapshot(store.workingMemory.getAll())
 
     const content =
       result.status === 'ok'
@@ -160,7 +242,7 @@ async function handleToolExecution(
             suggestion: 'Try using !help to see available tools and syntax.',
           })
 
-    await addAssistantMessage(store, content, result.displayType, toolName, result.execMs, tone)
+    await addAssistantMessage(store, content + factConfirmations, result.displayType, toolName, result.execMs, tone)
   } catch (err) {
     store.setToolStatus(toolName, 'error')
     const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -170,7 +252,7 @@ async function handleToolExecution(
         tool: toolName,
         message: errorMsg,
         suggestion: 'Check your input and try again.',
-      }),
+      }) + factConfirmations,
       'error',
       toolName,
       undefined,
@@ -181,6 +263,7 @@ async function handleToolExecution(
   }
 }
 
+// ── Tool Chain Handler ─────────────────────────────────────
 async function handleToolChain(
   chain: string,
   store: StoreApi,
@@ -201,6 +284,11 @@ async function handleToolChain(
             suggestion: 'Check each step of your chain.',
           })
 
+    // v5.0: Write to working memory and increment frequency for chains
+    store.writeWorkingMemory('chain', result, String(contextMemory.turnCount))
+    store.incrementToolFrequency('chain')
+    contextMemory.setWorkingMemorySnapshot(store.workingMemory.getAll())
+
     await addAssistantMessage(store, content, result.displayType, 'chain', result.execMs, 'neutral')
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -219,16 +307,17 @@ async function handleToolChain(
   }
 }
 
+// ── AI Relay Handler ───────────────────────────────────────
 async function handleAIRelay(
   input: string,
   store: StoreApi,
-  abortRef: React.RefObject<AbortController | null>,
   tone: Tone,
   parsedInput?: import('@/lib/types').ParsedInput,
+  factConfirmations: string = '',
 ) {
   store.setStreaming(true)
 
-  const assistantId = generateId()
+  const assistantId = crypto.randomUUID()
   const assistantMsg: Message = {
     id: assistantId,
     role: 'assistant',
@@ -239,6 +328,11 @@ async function handleAIRelay(
   }
   store.addMessage(assistantMsg)
 
+  // Prepend fact confirmations if any
+  if (factConfirmations) {
+    store.updateLastMessage(factConfirmations.trim())
+  }
+
   try {
     const context = contextMemory.summarize()
     const messages = useChatStore
@@ -246,8 +340,9 @@ async function handleAIRelay(
       .messages.filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => ({ role: m.role, content: m.content }))
 
+    // v5.0: Use AbortController from store
     const controller = new AbortController()
-    abortRef.current = controller
+    store.setAbortController(controller)
 
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -316,7 +411,7 @@ async function handleAIRelay(
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      // User aborted, that's fine
+      // User aborted — already handled by store.abortStream()
     } else {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'
       store.updateLastMessage(
@@ -324,10 +419,12 @@ async function handleAIRelay(
       )
     }
   } finally {
+    store.setAbortController(null)
     store.setStreaming(false)
   }
 }
 
+// ── Assistant Message Helper ───────────────────────────────
 async function addAssistantMessage(
   store: StoreApi,
   content: string,
@@ -337,7 +434,7 @@ async function addAssistantMessage(
   tone?: Tone,
 ) {
   const msg: Message = {
-    id: generateId(),
+    id: crypto.randomUUID(),
     role: 'assistant',
     content,
     displayType,
@@ -355,6 +452,7 @@ async function addAssistantMessage(
   sysInfoState.contextFlags = [...contextMemory.getFlags()]
 }
 
+// ── Intent → Template Key Mapping ──────────────────────────
 function getTemplateKeyFromIntent(intent: string): string {
   const mapping: Record<string, string> = {
     GREETING: 'GREET',
@@ -387,6 +485,9 @@ function getTemplateKeyFromIntent(intent: string): string {
     PRESENCE: 'PRESENCE_CONFIRM',
     WORD: 'TOOL_RESULT',
     JSON: 'TOOL_RESULT',
+    BOOLEAN: 'TOOL_RESULT',
+    DIFF: 'TOOL_RESULT',
+    DOC_MODE: 'DOC_MODE_PROMPT',
     UNKNOWN: 'UNKNOWN',
   }
   return mapping[intent] || 'UNKNOWN'

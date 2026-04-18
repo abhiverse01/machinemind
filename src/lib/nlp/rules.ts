@@ -3007,4 +3007,318 @@ export const RULES: Rule[] = [
     tool: null,
   },
 
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — WORKING MEMORY REFERENCES (WM_001-WM_005)
+  // Matches pronoun/demonstrative references to prior results
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'WM_001',
+    priority: 30,
+    patterns: [/^(multiply|divide|add|subtract)\s+(that|it|this)\s+by\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'MATH',
+    tool: 'calculator',
+  },
+  {
+    id: 'WM_002',
+    priority: 29,
+    patterns: [/^(now|then|also)\s+(convert|encode|decode|hash|analyze)\s+(that|it|this)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'WM',
+    tool: null,
+  },
+  {
+    id: 'WM_003',
+    priority: 28,
+    patterns: [/^(what('s| is) the\s+)?(square root|factorial|log|sin|cos|tan)\s+of\s+(that|it|this)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'MATH',
+    tool: 'calculator',
+  },
+  {
+    id: 'WM_004',
+    priority: 27,
+    patterns: [/^(hash|sha256|encode|base64)\s+(that|it|this)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'WM',
+    tool: null,
+  },
+  {
+    id: 'WM_005',
+    priority: 26,
+    patterns: [/\b(same (input|thing|value|text|number)) but\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'WM',
+    tool: null,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — BOOLEAN EVALUATOR (BOOL_001-BOOL_007)
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'BOOL_001',
+    priority: 22,
+    patterns: [/^!bool\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+  {
+    id: 'BOOL_002',
+    priority: 20,
+    patterns: [/\bis\s+-?\d+\s+(prime|even|odd|a\s+perfect\s+square|a\s+perfect\s+cube|a\s+power\s+of\s+2|a\s+power\s+of\s+two)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+  {
+    id: 'BOOL_003',
+    priority: 20,
+    patterns: [/\bare\s+-?\d+\s+and\s+-?\d+\s+coprime\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+  {
+    id: 'BOOL_004',
+    priority: 18,
+    patterns: [/\bis\s+-?\d+\s+divisible\s+by\s+-?\d+\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+  {
+    id: 'BOOL_005',
+    priority: 16,
+    patterns: [/\bis\s+-?\d+\s+(in|between)\s+(the\s+)?range\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+  {
+    id: 'BOOL_006',
+    priority: 14,
+    patterns: [/\bdoes\s+.+\s+contain\s+.+\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+  {
+    id: 'BOOL_007',
+    priority: 12,
+    patterns: [/\bis\s+.+\s+a\s+palindrome\b/i, /\bare\s+.+\s+and\s+.+\s+anagrams\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'BOOLEAN',
+    tool: 'boolean',
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — DIFF (DIFF_001-DIFF_004)
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'DIFF_001',
+    priority: 22,
+    patterns: [/^!diff\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DIFF',
+    tool: 'diff',
+  },
+  {
+    id: 'DIFF_002',
+    priority: 20,
+    patterns: [/\b(diff|compare|difference)\s+(between\s+)?(.+)\s+and\s+(.+)\b/i, /\b(diff|compare|difference)\s+(.+)\s+vs\.?\s+(.+)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DIFF',
+    tool: 'diff',
+  },
+  {
+    id: 'DIFF_003',
+    priority: 18,
+    patterns: [/\bwhat\s+(changed|'?s\s+different|is\s+the\s+difference)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DIFF',
+    tool: 'diff',
+  },
+  {
+    id: 'DIFF_004',
+    priority: 16,
+    patterns: [/\b(show|display|give)\s+(changes|diff|difference)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DIFF',
+    tool: 'diff',
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — DOC MODE (DOC_001-DOC_003)
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'DOC_001',
+    priority: 30,
+    patterns: [/^!doc\b/i, /^!document\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DOC_MODE',
+    tool: null,
+  },
+  {
+    id: 'DOC_002',
+    priority: 15,
+    patterns: [/\b(analyze|inspect|examine)\s+(this\s+)?(document|text|json)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DOC_MODE',
+    tool: null,
+  },
+  {
+    id: 'DOC_003',
+    priority: 14,
+    patterns: [/\b(summarize|word\s+count)\s+(for\s+)?this\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'DOC_MODE',
+    tool: null,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — IMPLICIT FACT FOLLOW-UPS (IMPL_001-IMPL_002)
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'IMPL_001',
+    priority: 10,
+    patterns: [/\byou\s+(remembered|noted|stored)\s+that\b/i],
+    contextRequired: null,
+    response: 'IMPL_CONFIRM',
+    setsContext: null,
+    tool: null,
+  },
+  {
+    id: 'IMPL_002',
+    priority: 8,
+    patterns: [/\bforget\s+(my|the)\s+\w+\b/i],
+    contextRequired: null,
+    response: 'IMPL_FORGET',
+    setsContext: null,
+    tool: null,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — NUMBER BASE CONVERSION (BASE_001-BASE_003)
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'BASE_001',
+    priority: 20,
+    patterns: [/\b\d+\s+(in|to)\s+(binary|octal|hex|hexadecimal)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'CONVERT',
+    tool: 'converter',
+  },
+  {
+    id: 'BASE_002',
+    priority: 18,
+    patterns: [/\b0x[0-9a-fA-F]+\s+(in|to)\s+(decimal|binary|octal)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'CONVERT',
+    tool: 'converter',
+  },
+  {
+    id: 'BASE_003',
+    priority: 16,
+    patterns: [/\broman\s+numerals?\s+(for|of)\b/i, /\b[IVXLCDM]{2,}\s+in\s+arabic\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'CONVERT',
+    tool: 'converter',
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — ADDITIONAL MATH PATTERNS (MATH_021-MATH_023)
+  // Natural language arithmetic expressions
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'MATH_021',
+    priority: 24,
+    patterns: [/\b(add|plus|subtract|minus|multiply|times)\s+[\d.]+\s+(and|to|by|with)\s+[\d.]+\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'MATH',
+    tool: 'calculator',
+  },
+  {
+    id: 'MATH_022',
+    priority: 24,
+    patterns: [/\bwhat('?s| is)\s+[\d.]+\s*(\+|-|\*|×|÷|plus|minus|times|divided by)\s*[\d.]+\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'MATH',
+    tool: 'calculator',
+  },
+  {
+    id: 'MATH_023',
+    priority: 24,
+    patterns: [/\b(add\s+2\s*\+\s*2|add\s+\d+\s*\+\s*\d+|calculate\s+\d+\s*[\+\-\*\/]\s*\d+)\b/i],
+    contextRequired: null,
+    response: 'TOOL_RESULT',
+    setsContext: 'MATH',
+    tool: 'calculator',
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // v5.0 — ADDITIONAL SMALL TALK (SMTK_025-SMTK_028)
+  // Natural conversation patterns
+  // ═══════════════════════════════════════════════════════════
+  {
+    id: 'SMTK_025',
+    priority: 10,
+    patterns: [/\b(can you|do you)\s+(speak|talk|understand|chat|converse)\b/i],
+    contextRequired: null,
+    response: 'CONV_NATURAL',
+    setsContext: null,
+    tool: null,
+  },
+  {
+    id: 'SMTK_026',
+    priority: 10,
+    patterns: [/\b(do you)\s+(understand|comprehend|get)\s+(humans?|people|me|us)\b/i],
+    contextRequired: null,
+    response: 'CONV_UNDERSTAND',
+    setsContext: null,
+    tool: null,
+  },
+  {
+    id: 'SMTK_027',
+    priority: 10,
+    patterns: [/\b(how do i|how can i|how to)\s+use\s+(your|the|these)\s+(tools?|features?)\b/i],
+    contextRequired: null,
+    response: 'CONV_TOOL_HELP',
+    setsContext: null,
+    tool: null,
+  },
+  {
+    id: 'SMTK_028',
+    priority: 10,
+    patterns: [/\b(write|compose|draft|create)\s+(an?\s+)?(essay|story|poem|article|letter|email)\b/i],
+    contextRequired: null,
+    response: 'CONV_CREATIVE',
+    setsContext: null,
+    tool: null,
+  },
+
 ]

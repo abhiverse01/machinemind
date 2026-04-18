@@ -560,6 +560,76 @@ export const TEMPLATES: Record<string, string[]> = {
     "Just a number? Give me context — like 'calculate 42 * 3' or 'convert 42 km to miles'. Or type !help to see what I can do with numbers.",
     "I see a number. Want me to do something with it? Try: 'what's {result} squared?' or 'convert {result} to hex'. Type !help for more ideas.",
   ],
+
+  // ── Boolean Results ────────────────────────────────────────────
+  BOOLEAN_TRUE: [
+    "{expression}: yes. {proof}",
+    "True — {proof}",
+    "{expression} checks out. {proof}",
+    "Affirmative. {proof}",
+  ],
+  BOOLEAN_FALSE: [
+    "{expression}: no. {proof}",
+    "False — {proof}",
+    "{expression} doesn't hold. {proof}",
+    "Negative. {proof}",
+  ],
+
+  // ── Diff Results ──────────────────────────────────────────────
+  DIFF_RESULT: [
+    "+{added} -{removed} changed. Similarity: {similarity}%",
+    "Diff complete — {added} added, {removed} removed. {similarity}% similar.",
+    "Diff: +{added}/-{removed}. {similarity}% match.",
+  ],
+  DIFF_IDENTICAL: [
+    "Identical. No differences found.",
+    "Same content. Zero diff.",
+  ],
+
+  // ── Working Memory ────────────────────────────────────────────
+  WM_RESOLVED: [
+    "(using {register}: {value})",
+  ],
+  WM_EMPTY: [
+    "Nothing in memory to reference. What value should I use?",
+    "I don't have a prior result to reference. What's the input?",
+    "No previous result stored. Give me a value to work with.",
+  ],
+
+  // ── Doc Mode ──────────────────────────────────────────────────
+  DOC_MODE_ENTER: [
+    "Document received ({chars} chars, {lines} lines). Routing to {tool}.",
+    "Got it — {chars} characters. Running {tool}.",
+  ],
+  DOC_MODE_PROMPT: [
+    "Document loaded. What do you want to do with it? (analyze, word count, hash, encode, diff...)",
+    "Document in buffer. Options: analyze, count words, hash, encode, diff against something.",
+  ],
+
+  // ── Implicit Fact Confirmation ────────────────────────────────
+  IMPLICIT_FACT_CONFIRM: [
+    "noted: {key} = \"{value}\"",
+    "stored: {key}",
+    "filed: {key}",
+  ],
+
+  // ── Memory Confirmation ───────────────────────────────────────
+  MEMORY_CONFIRM: [
+    "Yes. Stored: {list}",
+    "I have: {list}",
+    "On record: {list}",
+  ],
+
+  // ── Stream Control ────────────────────────────────────────────
+  STREAM_ABORTED: [
+    "Stopped.",
+    "Aborted.",
+    "Halted.",
+  ],
+  STREAM_MAX_ITERATIONS: [
+    "Reached tool chain limit (5). Stopping here.",
+    "Maximum tool iterations reached. Some steps may be incomplete.",
+  ],
 }
 
 // ───────────────────────────────────────────────────────────────

@@ -19,6 +19,8 @@ import { execute as regexExec } from './regex'
 import { execute as randomExec } from './random'
 import { execute as colorExec } from './color'
 import { execute as sysinfoExec } from './sysinfo'
+import { execute as diffExec } from './diff'
+import { execute as booleanExec } from './boolean'
 
 // ── Tool entry interface ─────────────────────────────────────
 interface ToolEntry {
@@ -145,6 +147,24 @@ register({
 })
 
 register({
+  name: 'diff',
+  description: 'Diff engine — compare texts, JSON, code. Shows added, removed, changed content.',
+  triggerSyntax: 'diff <a> vs <b>',
+  example: 'diff hello vs hallo',
+  outputType: 'code',
+  execute: diffExec,
+}, ['compare'])
+
+register({
+  name: 'boolean',
+  description: 'Boolean evaluator — primality, divisibility, range checks, palindrome, anagram, even/odd, power of two',
+  triggerSyntax: 'bool <query>',
+  example: 'is 17 prime?',
+  outputType: 'text',
+  execute: booleanExec,
+}, ['bool'])
+
+register({
   name: 'sysinfo',
   description: 'System status — mode, turn count, uptime, memory vars, tool statuses',
   triggerSyntax: '!help | !status | !tools | what can you do | system status',
@@ -160,6 +180,11 @@ export function getTool(name: string): ToolEntry | undefined {
 }
 
 export function listTools(): ToolEntry[] {
+  return primaryTools.map(name => registry.get(name)!).filter(Boolean)
+}
+
+// ── Alias for ToolTray component (same data, different name) ──
+export function allTools(): ToolEntry[] {
   return primaryTools.map(name => registry.get(name)!).filter(Boolean)
 }
 

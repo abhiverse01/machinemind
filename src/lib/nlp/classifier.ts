@@ -1,13 +1,18 @@
 // ─────────────────────────────────────────────────────────────
-// MACHINE MIND — Intent Classifier v4.0
-// Full pipeline: GibberishParser → FuzzyMatcher → Tokenizer → Rules → Fallback
+// MACHINE MIND — Intent Classifier v5.0
+// Full pipeline: GibberishParser → ImplicitFactExtractor → FuzzyMatcher
+//   → WorkingMemory.resolve → ValueExtractor → StateMachine → classify
 // ─────────────────────────────────────────────────────────────
 
-import type { ClassifiedIntent, IntentCategory, ParsedInput } from '../types'
+import type { ClassifiedIntent, ConversationState, ExtractedValues, ImplicitFact, IntentCategory, ParsedInput } from '../types'
 import { Tokenizer } from './tokenizer'
 import { GibberishParser } from './gibberish'
 import { FuzzyMatcher } from './fuzzy'
 import { RULES } from './rules'
+import { WorkingMemory } from './workingMemory'
+import { ValueExtractor } from './valueExtractor'
+import { ImplicitFactExtractor } from './implicitFacts'
+import { ConversationStateMachine } from './stateMachine'
 
 // ── Weighted keyword markers for fallback scoring ───────────
 const INTENT_WEIGHTS = {
@@ -57,6 +62,12 @@ function mapRuleIdToIntent(ruleId: string): IntentCategory {
     case 'EMOT':   return 'EMOTIONAL'
     case 'CONF':   return 'CONFUSION'
     case 'CMD':    return 'COMMAND'
+    case 'BOOL':   return 'BOOLEAN'
+    case 'DIFF':   return 'DIFF'
+    case 'DOC':    return 'DOC_MODE'
+    case 'WM':     return 'CHAIN_TOOL'
+    case 'IMPL':   return 'MEMORY_RECALL'
+    case 'BASE':   return 'CONVERT'
     case 'EDGE':   return 'UNKNOWN'
     default:       return 'UNKNOWN'
   }
@@ -76,13 +87,20 @@ function mapFallbackCategory(cat: string): IntentCategory {
   }
 }
 
-// ── Main classify function (v4.0 — uses ParsedInput from GibberishParser) ──
+// ── Extended return type for v5.0 pipeline ──────────────────
+export interface ClassifiedIntentV5 extends ClassifiedIntent {
+  implicitFacts?: ImplicitFact[]
+  extractedValues?: ExtractedValues
+}
+
+// ── Main classify function (v5.0 — state-aware, uses ParsedInput from GibberishParser) ──
 export function classify(
   input: string,
   normalised: string,
   tokens: string[],
   contextFlags: Set<string>,
   parsedInput?: ParsedInput,
+  conversationState?: ConversationState,
 ): ClassifiedIntent {
 
   // ── Step 1: Check RULES array (sorted by priority, highest first) ──
@@ -215,16 +233,22 @@ export function classify(
   }
 }
 
-// ── Convenience: full pipeline from raw input (v4.0) ────────
-// GibberishParser → FuzzyMatcher → Tokenizer → classify
+// ── Convenience: full pipeline from raw input (v5.0) ────────
+// GibberishParser → ImplicitFactExtractor → FuzzyMatcher
+//   → WorkingMemory.resolve → ValueExtractor → StateMachine → classify
 export function classifyInput(
   rawInput: string,
   contextFlags: Set<string> = new Set(),
-): ClassifiedIntent {
+  workingMemory?: WorkingMemory,
+  conversationState?: ConversationState,
+): ClassifiedIntentV5 {
   // Step 1: GibberishParser — human noise parser (runs first!)
   const parsedInput = GibberishParser.parse(rawInput)
 
-  // Step 2: FuzzyMatcher — typo correction
+  // Step 2: ImplicitFactExtractor — detect implicit personal facts
+  const implicitFacts = ImplicitFactExtractor.extract(rawInput)
+
+  // Step 3: FuzzyMatcher — typo correction
   const fuzzyTokens = parsedInput.cleaned.split(/\s+/).filter(Boolean)
   const { tokens: correctedTokens, corrections } = FuzzyMatcher.correctSentence(fuzzyTokens)
 
@@ -240,11 +264,65 @@ export function classifyInput(
     cleaned: finalCleaned,
   }
 
-  // Step 3: Tokenizer — normalize and tokenize
+  // Step 4: WorkingMemory.resolve — resolve pronouns/demonstratives before classification
+  let resolvedInput = finalCleaned
+  let wmResolved = false
+  if (workingMemory) {
+    const resolveResult = workingMemory.resolve(finalCleaned)
+    if (resolveResult) {
+      // Replace the pronoun/demonstrative with the resolved value
+      resolvedInput = finalCleaned.replace(/\b(that|it|this|the result|the value|the previous|the output|the answer|that result|this result|that value|this value)\b/i, resolveResult.resolved)
+      if (resolvedInput === finalCleaned) {
+        // Fallback: if the regex didn't match, just use resolved value directly
+        resolvedInput = resolveResult.resolved
+      }
+      wmResolved = true
+    }
+  }
+
+  // Step 5: ValueExtractor — extract typed values from the (possibly resolved) input
+  const extractedValues = ValueExtractor.extract(resolvedInput)
+
+  // Step 6: ConversationStateMachine.transition — update conversation state
+  // (state machine is managed externally; we just provide the signal here)
+  // If conversationState is provided, add it to context flags for state-aware routing
+  const enrichedContextFlags = new Set(contextFlags)
+  if (conversationState) {
+    enrichedContextFlags.add(`STATE_${conversationState}`)
+  }
+  if (wmResolved) {
+    enrichedContextFlags.add('WM_RESOLVED')
+  }
+
+  // Step 7: Tokenizer — normalize and tokenize the resolved input
   const tokenizer = new Tokenizer()
-  const normalised = tokenizer.normalize(updatedParsedInput.cleaned)
+  const inputForClassification = wmResolved ? resolvedInput : updatedParsedInput.cleaned
+  const normalised = tokenizer.normalize(inputForClassification)
   const tokens = tokenizer.tokenize(normalised)
 
-  // Step 4: Classify
-  return classify(rawInput, normalised, tokens, contextFlags, updatedParsedInput)
+  // Step 8: Classify with full context
+  const result = classify(
+    wmResolved ? resolvedInput : rawInput,
+    normalised,
+    tokens,
+    enrichedContextFlags,
+    wmResolved ? { ...updatedParsedInput, cleaned: inputForClassification } : updatedParsedInput,
+    conversationState,
+  )
+
+  // Return v5.0 result with implicit facts and extracted values
+  return {
+    ...result,
+    ...(implicitFacts.length > 0 ? { implicitFacts } : {}),
+    ...(extractedValues.numbers.length > 0 ||
+      extractedValues.strings.length > 0 ||
+      extractedValues.emails.length > 0 ||
+      extractedValues.urls.length > 0 ||
+      extractedValues.units.length > 0 ||
+      extractedValues.colors.length > 0 ||
+      extractedValues.dates.length > 0 ||
+      extractedValues.ipAddresses.length > 0
+      ? { extractedValues }
+      : {}),
+  }
 }

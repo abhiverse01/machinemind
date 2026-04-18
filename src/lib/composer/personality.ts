@@ -79,6 +79,22 @@ const DRY_WIT_POOL: string[] = [
   'No regex match. Sometimes absence is the answer.',
   'Password generated. Don\'t write it on a sticky note.',
   'Time checked. It keeps moving, regardless.',
+
+  // ── v5.0 additions ──────────────────────────────────────────
+  'Confirmed. The universe proceeds as expected.',
+  'Negative. The math is very clear about this.',
+  'Identical. You showed me the same thing twice.',
+  'Substantial diff. Something changed here.',
+  'Used the last result. Efficient.',
+  'Filed. I\'ll remember that until you close the tab.',
+  'Document processed. You\'re welcome.',
+  'Stopped. I had more to say.',
+  'Unique in the sense that no one has ever generated this exact string before.',
+  'Prime numbers — the universe\'s way of being awkward.',
+  'Boolean evaluated. Reality remains indifferent.',
+  'Working memory accessed. The machine remembers.',
+  'Range check complete. The boundaries hold.',
+  'Diff computed. Change is the only constant. Except constants.',
 ]
 
 // ── Wit Rate Limiter ────────────────────────────────────────
@@ -227,6 +243,40 @@ export function maybeInjectWit(): string | null {
  * - Non-tool results: maybe inject wit, then apply tone rules
  * - Always strips forbidden phrases
  */
+// ── Context-Appropriate Wit for Tool Types ────────────────
+
+const TOOL_TYPE_WIT: Record<string, string[]> = {
+  boolean_true: [
+    'Confirmed. The universe proceeds as expected.',
+    'True. Reality remains consistent.',
+    'Boolean evaluated. Reality remains indifferent.',
+  ],
+  boolean_false: [
+    'Negative. The math is very clear about this.',
+    'False. The universe disagrees.',
+    'Boolean evaluated. Reality remains indifferent.',
+  ],
+  diff_identical: ['Identical. You showed me the same thing twice.'],
+  diff_changed: ['Substantial diff. Something changed here.'],
+  wm_resolved: ['Used the last result. Efficient.'],
+  implicit_fact: ["Filed. I'll remember that until you close the tab."],
+  doc_mode: ["Document processed. You're welcome."],
+  stream_abort: ['Stopped. I had more to say.'],
+  uuid: ['Unique in the sense that no one has ever generated this exact string before.'],
+  primality: ["Prime numbers — the universe's way of being awkward."],
+}
+
+/**
+ * Returns a context-appropriate wit one-liner for a specific tool type.
+ * Returns null for unknown types.
+ */
+export function injectWitForToolType(toolType: string): string | null {
+  const pool = TOOL_TYPE_WIT[toolType]
+  if (!pool || pool.length === 0) return null
+  const idx = Math.floor(Math.random() * pool.length)
+  return pool[idx]
+}
+
 export function formatWithTone(
   template: string,
   tone: Tone,

@@ -1,4 +1,5 @@
 import { Role, ContextEntry } from '../types'
+import type { WorkingMemoryRegisters } from '../types'
 
 // ─────────────────────────────────────────────────────────────
 // MACHINE MIND — Context Memory Module
@@ -44,6 +45,7 @@ export class ContextMemory {
   private sessionVars: Map<string, string> = new Map()
   private entityStack: string[] = []          // last 5 named entities (FIFO)
   private contextFlags: Set<string> = new Set()
+  private workingMemorySnapshot: WorkingMemoryRegisters | null = null
   turnCount = 0
 
   // ── Core push ──────────────────────────────────────────────
@@ -322,7 +324,28 @@ export class ContextMemory {
         ? [...this.contextFlags].join(', ')
         : 'none'
 
-    return `Prior context: ${contextStr}. Stored vars: {${varKeys}}. Entities: [${entitiesStr}]. Flags: [${flagsStr}].`
+    const wmStr = this.workingMemorySnapshot
+      ? Object.entries(this.workingMemorySnapshot)
+          .filter(([, v]) => v !== null)
+          .map(([k]) => k)
+          .join(', ')
+      : 'none'
+
+    return `Prior context: ${contextStr}. Stored vars: {${varKeys}}. Entities: [${entitiesStr}]. Flags: [${flagsStr}]. Working memory registers: [${wmStr}].`
+  }
+
+  setWorkingMemorySnapshot(registers: WorkingMemoryRegisters): void {
+    this.workingMemorySnapshot = { ...registers }
+  }
+
+  getWorkingMemorySnapshot(): WorkingMemoryRegisters | null {
+    return this.workingMemorySnapshot
+  }
+
+  toAPIMessages(): Array<{ role: 'user' | 'assistant'; content: string }> {
+    return this.shortTerm
+      .filter(e => e.role === 'user' || e.role === 'assistant')
+      .map(e => ({ role: e.role as 'user' | 'assistant', content: e.content }))
   }
 
   private truncate(text: string, maxLen: number): string {
@@ -343,6 +366,7 @@ export class ContextMemory {
     this.sessionVars.clear()
     this.entityStack = []
     this.contextFlags.clear()
+    this.workingMemorySnapshot = null
     this.turnCount = 0
   }
 
@@ -355,6 +379,7 @@ export class ContextMemory {
       entityStack: this.entityStack,
       contextFlags: [...this.contextFlags],
       turnCount: this.turnCount,
+      workingMemorySnapshot: this.workingMemorySnapshot,
     })
   }
 
@@ -373,6 +398,8 @@ export class ContextMemory {
         : new Set()
       this.turnCount =
         typeof data.turnCount === 'number' ? data.turnCount : 0
+      this.workingMemorySnapshot =
+        data.workingMemorySnapshot ?? null
     } catch {
       // Corrupted data — start fresh
       this.clear()

@@ -54,3 +54,39 @@ Stage Summary:
 - "write an essay on deforestation" → CONV_CREATIVE template (was routing to JSON tool)
 - "how do i use your json tools" → CONV_TOOL_HELP template (was UNKNOWN)
 - Build passes successfully
+
+---
+Task ID: v5.0-complete
+Agent: Main Agent
+Task: Build MACHINE MIND v5.0 — The Reasoning Layer
+
+Work Log:
+- Created lib/nlp/workingMemory.ts — typed cross-turn result registers with pronoun resolution
+- Created lib/nlp/valueExtractor.ts — extracts numbers, strings, emails, URLs, units, colors, dates, IPs from natural prose
+- Created lib/nlp/implicitFacts.ts — detects "my X is Y" patterns for silent session learning
+- Created lib/nlp/stateMachine.ts — conversation state tracking (FRESH, TOOL_CHAIN, CLARIFYING, EMOTIONAL, DOC_MODE, AI_RELAY)
+- Created lib/tools/diff.ts — Myers diff algorithm with char/word/json modes
+- Created lib/tools/boolean.ts — boolean evaluator (primality, divisibility, range, palindrome, anagram, etc.)
+- Extended lib/types.ts — added ConversationState, WorkingMemoryRegisters, ExtractedValues, ImplicitFact, DiffSegment, DiffResult, BooleanResult, WMResolveResult types
+- Extended lib/nlp/classifier.ts — state-aware routing, v5.0 pipeline order, working memory + value extraction integration
+- Extended lib/nlp/rules.ts — 25+ new rules for WM references, boolean, diff, doc mode, implicit facts, base conversion, natural math
+- Extended lib/tools/registry.ts — registered diff + boolean tools, added allTools() export
+- Extended lib/composer/templates.ts — 9 new template categories (BOOLEAN_TRUE/FALSE, DIFF_RESULT, WM_RESOLVED/EMPTY, DOC_MODE, etc.)
+- Extended lib/composer/personality.ts — 14 new dry wit entries, injectWitForToolType() function
+- Extended lib/memory/context.ts — WorkingMemory integration, toAPIMessages(), serialize/restore updates
+- Rewrote store/chat.ts — full v5.0 Zustand store with workingMemory, stateMachine, toolCallFrequency, implicitFacts, docMode, abortController
+- Rewrote hooks/useChat.ts — complete v5.0 pipeline (gibberish → implicit facts → fuzzy → WM resolve → value extraction → state machine → classify → route)
+- Rewrote app/api/chat/route.ts — Anthropic function calling agentic loop with stream interruption, 14 tool definitions
+- Extended components/chat/InputBar.tsx — paste detection, doc mode preview card, stream abort button, Escape key
+- Extended components/tools/ToolTray.tsx — frequency-based sorting with RECENT/ALL/SYSTEM sections
+- Extended components/chat/ChatShell.tsx — removed broken forwardRef pattern
+- Fixed TypeScript errors: types.ts circular imports, store writeWorkingMemory signature, ChatShell ref issue
+
+Stage Summary:
+- All v5.0 files created/extended successfully
+- Zero TypeScript compilation errors
+- Zero ESLint errors
+- Dev server running and serving pages correctly
+- Complete Reasoning Layer: WorkingMemory, ValueExtractor, ImplicitFacts, StateMachine, Diff, Boolean
+- 14 tools registered with function calling schema
+- Full NLP pipeline with v5.0 order enforced

@@ -186,11 +186,23 @@ export interface SysInfo {
 }
 
 export interface ChatStore {
+  // ── Core state ──────────────────────────────────────────────
   messages: Message[]
   mode: AppMode
   isStreaming: boolean
   toolStates: Record<string, ToolStatus>
   contextSummary: string
+
+  // ── v5.0 additions ─────────────────────────────────────────
+  workingMemory: unknown // WorkingMemory instance from lib/nlp/workingMemory
+  stateMachine: unknown // ConversationStateMachine instance from lib/nlp/stateMachine
+  toolCallFrequency: Map<string, number>
+  conversationState: ConversationState
+  implicitFacts: Map<string, string>
+  docModeContent: string | null
+  abortController: AbortController | null
+
+  // ── Actions ────────────────────────────────────────────────
   addMessage: (msg: Message) => void
   updateLastMessage: (token: string) => void
   setMode: (mode: AppMode) => void
@@ -198,6 +210,15 @@ export interface ChatStore {
   setToolStatus: (tool: string, status: ToolStatus) => void
   setContextSummary: (s: string) => void
   clearSession: () => void
+  writeWorkingMemory: (toolName: string, result: ToolResult, turn: number) => void
+  incrementToolFrequency: (toolName: string) => void
+  getToolsByFrequency: () => Array<{ name: string; count: number }>
+  addImplicitFact: (key: string, value: string) => void
+  setDocModeContent: (content: string | null) => void
+  setAbortController: (ac: AbortController | null) => void
+  abortStream: () => void
+  updateConversationState: (input: string, tone: string, charCount: number) => void
+  setConversationState: (state: ConversationState) => void
 }
 
 export interface ApiChatRequest {
