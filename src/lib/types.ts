@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// MACHINE MIND — Shared TypeScript Types v4.0
+// MACHINE MIND — Shared TypeScript Types v5.0
 // Zero `any`. Every function is typed. Strict mode compliant.
 // ─────────────────────────────────────────────────────────────
 
@@ -46,6 +46,9 @@ export type IntentCategory =
   | 'PRESENCE'
   | 'WORD'
   | 'JSON'
+  | 'BOOLEAN'
+  | 'DIFF'
+  | 'DOC_MODE'
   | 'UNKNOWN'
 
 export interface ParsedInput {
@@ -231,3 +234,100 @@ export interface ApiValidateResponse {
 }
 
 export type ThemePreference = 'light' | 'dark' | 'system'
+
+// ─────────────────────────────────────────────────────────────
+// v5.0 — Conversation State Machine
+// ─────────────────────────────────────────────────────────────
+
+export type ConversationState = 'FRESH' | 'TOOL_CHAIN' | 'CLARIFYING' | 'EMOTIONAL' | 'DOC_MODE' | 'AI_RELAY'
+
+export interface StateTransition {
+  from: ConversationState
+  to: ConversationState
+  trigger: string
+  turn: number
+}
+
+// ─────────────────────────────────────────────────────────────
+// v5.0 — Working Memory Registers
+// ─────────────────────────────────────────────────────────────
+
+export interface WorkingMemoryRegisters {
+  lastNumber:    { value: number;  expression: string;    tool: string; turn: number } | null
+  lastString:    { value: string;  source: string;        tool: string; turn: number } | null
+  lastColor:     { hex: string;    rgb: [number,number,number]; hsl: [number,number,number]; turn: number } | null
+  lastJSON:      { value: unknown; raw: string;           depth: number; turn: number } | null
+  lastList:      { items: string[]; source: string;       turn: number } | null
+  lastBool:      { value: boolean; expression: string;    turn: number } | null
+  lastDiff:      { original: string; modified: string;    type: 'char'|'word'|'json'; turn: number } | null
+  lastUnit:      { value: number; unit: string; converted: number; toUnit: string; turn: number } | null
+  lastEncoded:   { value: string; encoding: string;       original: string; turn: number } | null
+  lastHash:      { value: string; algorithm: string;      input: string; turn: number } | null
+  lastRandom:    { value: unknown; type: string;          turn: number } | null
+  recentTool:    string | null
+  recentTopic:   string | null
+}
+
+// ─────────────────────────────────────────────────────────────
+// v5.0 — Value Extraction
+// ─────────────────────────────────────────────────────────────
+
+export interface ExtractedValues {
+  numbers: Array<{ value: number; raw: string; position: number }>
+  strings: Array<{ value: string; delimiter: 'quote'|'colon'|'implicit'; position: number }>
+  emails: string[]
+  urls: string[]
+  units: Array<{ value: number; unit: string; position: number }>
+  colors: Array<{ value: string; format: 'hex'|'rgb'|'hsl'|'name'; position: number }>
+  dates: string[]
+  ipAddresses: string[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// v5.0 — Implicit Facts
+// ─────────────────────────────────────────────────────────────
+
+export interface ImplicitFact {
+  key: string
+  value: string
+  confidence: number
+  pattern: string
+  confirmation: string
+}
+
+// ─────────────────────────────────────────────────────────────
+// v5.0 — Diff & Boolean
+// ─────────────────────────────────────────────────────────────
+
+export type DiffOp = 'equal' | 'added' | 'removed' | 'changed'
+
+export interface DiffSegment {
+  op: DiffOp
+  value: string
+  oldValue?: string
+}
+
+export interface DiffResult {
+  segments: DiffSegment[]
+  addedCount: number
+  removedCount: number
+  changedCount: number
+  similarity: number
+  mode: 'char' | 'word' | 'json'
+}
+
+export interface BooleanResult {
+  value: boolean
+  expression: string
+  proof?: string
+}
+
+// ─────────────────────────────────────────────────────────────
+// v5.0 — Working Memory Resolve Result
+// ─────────────────────────────────────────────────────────────
+
+export interface WMResolveResult {
+  resolved: string
+  register: string
+  value: unknown
+}
