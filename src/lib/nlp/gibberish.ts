@@ -99,8 +99,8 @@ export class GibberishParser {
     // Hedging question openers
     'is there a way to', 'how do i', 'how would i', 'can you like',
     'do you think you could', 'is it possible to', 'would it be possible',
-    // Address fillers
-    'hey', 'yo', 'oi', 'bro', 'dude', 'man', 'mate', 'fam',
+    // Address fillers (NOT greeting words — those must reach the classifier)
+    'bro', 'dude', 'man', 'mate', 'fam',
     // Politeness fillers
     'pls', 'plz', 'please', 'thanks', 'ty', 'thx',
     // Time pressure fillers

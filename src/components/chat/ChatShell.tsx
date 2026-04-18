@@ -49,6 +49,29 @@ export function ChatShell() {
     setMode('rule_engine')
   }, [mode, setMode])
 
+  // Handle tool click from ToolTray — insert command into InputBar
+  const handleToolClick = useCallback((triggerSyntax: string) => {
+    if (inputBarRef.current) {
+      const el = inputBarRef.current
+      const start = el.selectionStart
+      const end = el.selectionEnd
+      const current = el.value
+      const newValue = current.substring(0, start) + triggerSyntax + current.substring(end)
+      // Use native input setter to trigger React's onChange
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value',
+      )?.set
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(el, newValue)
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      const newCursorPos = start + triggerSyntax.length
+      el.setSelectionRange(newCursorPos, newCursorPos)
+      el.focus()
+    }
+  }, [])
+
   // Keyboard shortcuts
   useKeyboard({
     onToggleToolTray: toggleTray,
@@ -81,12 +104,15 @@ export function ChatShell() {
       {/* Main area: tray + chat */}
       <div className="flex min-h-0 flex-1">
         {/* Tool tray */}
-        <ToolTray />
+        <ToolTray
+          isOpen={trayOpen}
+          onToolClick={handleToolClick}
+        />
 
         {/* Chat panel */}
         <div className="flex min-w-0 flex-1 flex-col">
           <ChatHistory />
-          <InputBar />
+          <InputBar ref={inputBarRef} />
         </div>
       </div>
 

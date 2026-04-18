@@ -9,24 +9,24 @@
 export const TEMPLATES: Record<string, string[]> = {
   // ── Greeting ────────────────────────────────────────────────
   GREET: [
-    "Online. What do you need?",
-    "Running.",
-    "System ready.",
-    "Machine Mind active.",
-    "Standing by.",
-    "Go ahead.",
+    "Hey! I'm MACHINE MIND. What can I help you with?",
+    "Hello! Ready when you are. What's on your mind?",
+    "Hi there! I can calculate, convert, encode, and a lot more. Just ask.",
+    "Hey! Ask me anything, or type !help to see all my tools.",
+    "Hi! I'm here. What do you need?",
+    "Hello! What are we working on today?",
   ],
   GREET_TIMED: [
-    "Good {timeOfDay}. What's the task?",
-    "Morning. System nominal.",
-    "Evening. What do you need?",
+    "Good {timeOfDay}! What can I do for you?",
+    "Good {timeOfDay}! Ready to help. What do you need?",
+    "Good {timeOfDay}! What are we working on?",
   ],
   GREET_CASUAL: [
-    "Hey.",
-    "What's up.",
-    "Here.",
-    "Ready.",
-    "Yeah.",
+    "Hey! What's up?",
+    "Yo! What do you need?",
+    "Here and ready. What's on your mind?",
+    "What's good? Tell me what you need.",
+    "Hey! Fire away.",
   ],
   GREET_RETURN: [
     "Welcome back. Session resumed.",
@@ -289,12 +289,11 @@ export const TEMPLATES: Record<string, string[]> = {
 
   // ── Unknown / Fallback ──────────────────────────────────────
   UNKNOWN: [
-    "Pattern didn't match. Rephrase or prefix with ! for a direct tool call. !help for the full list.",
-    "Didn't catch that. More specific, or use !help.",
-    "No match. If you added an API key, I'd route that to Claude instead — this is the edge of the rule engine.",
-    "I didn't get that one. Try differently, or type !help.",
-    "Unmatched. Rephrase or check !help. Adding a key unlocks freeform AI mode for exactly this.",
-    "Not in my rule table. !help shows all tools. Alternatively: settings → enable AI mode.",
+    "I'm not sure I understood that. Try rephrasing, or type !help to see everything I can do.",
+    "Hmm, that didn't match any of my patterns. You can try saying it differently, or use !help to browse my tools.",
+    "I didn't quite get that. I work best with direct requests — try something like 'what's 5km in miles' or 'hash this: hello'. Type !help for the full list.",
+    "Not sure what you mean. I understand natural language for math, conversions, encoding, and more. Type !help for examples!",
+    "That didn't click for me. Try asking directly — like 'calculate 15% of 200' or 'what time is it?'. Or hit !help.",
   ],
   UNKNOWN_LOW_CONFIDENCE: [
     "Low confidence match. Rephrase or use a direct command.",
@@ -497,6 +496,69 @@ export const TEMPLATES: Record<string, string[]> = {
   DICE_CRITICAL_FAIL: ["Critical fail. Roll {notation}: {results} = {total}."],
   DICE_INVALID: [
     "Invalid dice notation. Use format like 2d20, d6, 3d8+5.",
+  ],
+
+  // ── Conversational ─────────────────────────────────────────
+  CONV_NATURAL: [
+    "I can! I understand natural language — just talk to me like you would anyone. Try 'what's 5km in miles' or 'hash this: hello' or just ask me a question. I'm better with direct requests than open-ended ones, but I'll do my best.",
+    "Absolutely. I process natural language through a 300+ rule engine. I'm best at math, conversions, encoding, and analysis — but I can hold a conversation too. What do you need?",
+  ],
+  CONV_UNDERSTAND: [
+    "I understand language through pattern matching — not the way humans do, but well enough to be useful. I parse your input through a pipeline: cleanup, typo correction, tokenization, then classification against 300+ rules. I'm best with direct, specific requests. What can I help with?",
+    "I process language, not meaning. My NLP pipeline strips filler words, corrects typos, and matches your intent against rules. I'm good with tools and commands — less so with open-ended conversation. But I try. What do you need?",
+  ],
+  CONV_FAMILIAR: [
+    "I know I sound different — that's by design. I'm direct and precise, not chatty. But I can help with a lot: math, conversions, encoding, hashing, color analysis, JSON, regex, and more. Give me a real task and I'll deliver.",
+    "Fair point. I'm a precision tool, not a chatbot. My voice is intentionally dry. But under the hood I've got 12 tools and 300+ intent rules. Try me with something concrete — I shine there.",
+  ],
+  CONV_TOOL_HELP: [
+    "Here's how to use my tools:\n\n• Type naturally: 'what's 5km in miles' or 'hash this: hello'\n• Use ! prefix: !calc 2+3, !time, !encode hello, !hash secret\n• Chain tools with |: !calc 2+3 | !encode\n• Type !help for the full list with examples\n\nI also understand natural language for all tools — you don't have to memorize commands.",
+    "You can use tools two ways:\n\n1. Natural language: 'calculate 15% of 200', 'what time is it?', 'encode hello to base64'\n2. Direct commands: !calc, !time, !encode, !hash, !color, !roll, !password, etc.\n\nType !help to see all 12 tools with examples.",
+  ],
+  CONV_CREATIVE: [
+    "I'm a rule engine, not a creative writer. For essays, stories, and creative content, you'd need the AI relay — add an Anthropic API key in settings. But I can help with the analytical side: word counts, reading level, character analysis. Try !word on your text.",
+    "Creative writing is beyond my rule set. I can calculate, convert, encode, hash, and analyze — but writing original content needs the AI relay. Enable it in settings with an API key. Meanwhile, I can help you analyze or format text you've already written.",
+  ],
+  CONV_QUESTION: [
+    "That's a good question. For general knowledge, I need the AI relay — add an API key in settings. But if your question involves math, time, conversions, encoding, or any of my 12 tools, I can answer directly right now. What specifically do you need?",
+    "I can answer tool-related questions directly — math, time, conversions, encoding, etc. For general knowledge, I'd need the AI relay enabled (add an API key in settings). What's the question?",
+  ],
+  CONV_EMOTION: [
+    "I hear you. I'm a machine so I can't truly relate, but I'm here if you need something concrete to work on. Sometimes doing one small productive thing helps. Want to try a tool? I've got 12.",
+    "Noted. I can't offer emotional support the way a person could, but I can help you get something done. Sometimes that's enough. What can I do for you right now?",
+  ],
+  CONV_ADVICE: [
+    "I'm a precision tool, not an advisor. I can calculate, convert, encode, analyze — concrete tasks with concrete answers. For advice, you'd want the AI relay with an API key. But if there's something I can compute or look up, I'm on it.",
+    "Advice isn't really my strength — I deal in calculations and conversions. But if your question can be reduced to something measurable or computable, I'm your machine. What's the specific problem?",
+  ],
+  CONV_PHILOSOPHY: [
+    "Big questions. My take: I process language and return results. The meaning behind that is yours to decide. But I can tell you that 42 is the square root of 1764. That's the kind of answer I'm built for.",
+    "Philosophy needs the kind of reasoning my rule engine doesn't have. I can tell you the SHA-256 hash of 'meaning of life' though — if that helps. For real philosophical discussion, enable the AI relay in settings.",
+  ],
+  CONV_CONFUSED: [
+    "No worries — let me help. You can:\n\n• Ask me directly: 'what's 5km in miles' or 'what time is it?'\n• Use ! commands: !help, !calc, !time, !encode, !hash\n• Ask about my tools: 'what can you do?'\n\nI understand natural language for all my tools. Just describe what you need.",
+    "Let me simplify. I have 12 tools and understand natural language. Try:\n• Math: 'calculate 15% of 200'\n• Time: 'what time is it?'\n• Convert: '5km in miles'\n• Encode: 'encode hello to base64'\n• Help: type !help\n\nWhat are you trying to do?",
+  ],
+  CONV_APPRECIATE: [
+    "Glad it's useful. That's the goal.",
+    "Thanks. I'm built for this.",
+    "Appreciated. I'll keep the engine running.",
+  ],
+  CONV_SUGGESTION: [
+    "I like the direction. What specifically should I help with? I can calculate, convert, encode, analyze, and more.",
+    "Sounds good. Give me a concrete task and I'll make it happen. Try !help if you want to browse options.",
+  ],
+  CONV_MORE: [
+    "Sure — what do you want more of? I can go deeper on math, conversions, encoding, or any of my tools. Or type !help to see everything I can do.",
+    "What area? I've got 12 tools and 300+ intent rules. Pick a direction and I'll expand on it.",
+  ],
+  CONV_WHATS_NEW: [
+    "Same as always — processing language and running tools. What's new with you? More importantly, what can I help you with right now?",
+    "Not much changes in my world — I process inputs and produce outputs. But I'm ready for whatever you throw at me. What do you need?",
+  ],
+  EDGE_NUMBER: [
+    "Just a number? Give me context — like 'calculate 42 * 3' or 'convert 42 km to miles'. Or type !help to see what I can do with numbers.",
+    "I see a number. Want me to do something with it? Try: 'what's {result} squared?' or 'convert {result} to hex'. Type !help for more ideas.",
   ],
 }
 

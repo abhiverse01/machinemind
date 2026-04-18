@@ -13,10 +13,11 @@ export function DevCredit() {
       rel="noopener noreferrer"
       aria-label="Abhishek Shah — developer portfolio"
       className="dev-credit"
+      role="contentinfo"
     >
       <span className="dev-credit__dot" aria-hidden="true" />
       <span className="dev-credit__text">
-        Abhishek Shah
+        Abhishek Shah · abhishekshah.vercel.app
       </span>
     </a>
   )

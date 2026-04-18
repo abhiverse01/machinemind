@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // MACHINE MIND — SettingsPanel Component
 // Slide-in drawer from right (320px).
-// AI Mode toggle, Theme selector, Clear Session, Version string.
+// AI Mode toggle, Theme selector, API Key input, Clear Session, Version string.
 // ─────────────────────────────────────────────────────────────
 
 'use client'
@@ -26,7 +26,51 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const [aiKeyValid, setAiKeyValid] = useState<boolean | null>(null)
   const [aiKeyLoading, setAiKeyLoading] = useState(false)
   const [showKeyWarning, setShowKeyWarning] = useState(false)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [apiKeySaving, setApiKeySaving] = useState(false)
+  const [apiKeySaved, setApiKeySaved] = useState(false)
   const [clearConfirm, setClearConfirm] = useState(false)
+
+  // Check API key validity when panel opens
+  useEffect(() => {
+    if (!open) return
+    const checkKey = async () => {
+      try {
+        const res = await fetch('/api/validate')
+        const data: ApiValidateResponse = await res.json()
+        setAiKeyValid(data.hasKey)
+      } catch {
+        setAiKeyValid(false)
+      }
+    }
+    checkKey()
+  }, [open])
+
+  // Save API key
+  const handleSaveApiKey = useCallback(async () => {
+    const trimmed = apiKeyInput.trim()
+    if (!trimmed) return
+    setApiKeySaving(true)
+    try {
+      const res = await fetch('/api/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: trimmed }),
+      })
+      const data: ApiValidateResponse = await res.json()
+      if (data.hasKey) {
+        setAiKeyValid(true)
+        setApiKeySaved(true)
+        setApiKeyInput('')
+        setShowKeyWarning(false)
+        setTimeout(() => setApiKeySaved(false), 3000)
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setApiKeySaving(false)
+    }
+  }, [apiKeyInput])
 
   // Check API key when toggling AI mode
   const handleAiToggle = useCallback(async () => {
@@ -178,7 +222,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 </p>
                 <p className="mt-1 text-xs text-[var(--mm-text-muted)]">
                   The AI relay requires an Anthropic API key to function.
-                  Add it to your server environment variables and restart.
+                  Add it below or set it in your server environment variables and restart.
                 </p>
               </div>
             )}
@@ -189,6 +233,60 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 ? 'Responds using local rules and tools. Fast, offline-capable.'
                 : 'Routes messages to Anthropic Claude for AI-powered responses.'}
             </p>
+          </section>
+
+          {/* ── API Key Input ──────────────────────────────── */}
+          <section>
+            <label
+              htmlFor="api-key-input"
+              className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--mm-text-muted)]"
+            >
+              API Key
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="api-key-input"
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="sk-ant-..."
+                className="flex-1 rounded-md border border-[var(--mm-border)] bg-[var(--mm-bg-secondary)] px-3 py-2 text-sm text-[var(--mm-text-primary)] placeholder:text-[var(--mm-text-muted)] transition-colors duration-150 focus:border-[var(--mm-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--mm-accent)]"
+                style={{ fontFamily: 'var(--font-mono, monospace)' }}
+                aria-label="Anthropic API key input"
+              />
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                disabled={!apiKeyInput.trim() || apiKeySaving}
+                className="shrink-0 rounded-md bg-[var(--mm-accent)] px-3 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mm-accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Save API key"
+              >
+                {apiKeySaving ? 'Saving\u2026' : 'Save'}
+              </button>
+            </div>
+            {apiKeySaved && (
+              <p className="mt-1.5 text-xs text-[var(--mm-success)]">
+                API key saved. AI Relay is now available.
+              </p>
+            )}
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <span
+                className={`inline-block size-2 rounded-full ${
+                  aiKeyValid === true
+                    ? 'bg-[var(--mm-success)]'
+                    : aiKeyValid === false
+                      ? 'bg-[var(--mm-error)]'
+                      : 'bg-[var(--mm-text-muted)]'
+                }`}
+              />
+              <span className="text-xs text-[var(--mm-text-muted)]">
+                {aiKeyValid === true
+                  ? 'Key configured'
+                  : aiKeyValid === false
+                    ? 'No key configured'
+                    : 'Checking\u2026'}
+              </span>
+            </div>
           </section>
 
           {/* ── Theme selector ─────────────────────────────── */}

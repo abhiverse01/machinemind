@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // MACHINE MIND — ToolTray Component
-// Collapsible tool sidebar: 220px on desktop, 48px icon-only on mobile.
+// Collapsible tool sidebar: 220px open on desktop, 48px icon-only collapsed/mobile.
 // Shows all 12 tools with status indicators.
 // Clicking a tool inserts "!toolname " into the input via callback.
 // ─────────────────────────────────────────────────────────────
@@ -31,10 +31,11 @@ const TOOL_ICONS: Record<string, string> = {
 }
 
 interface ToolTrayProps {
+  isOpen?: boolean
   onToolClick?: (triggerSyntax: string) => void
 }
 
-export function ToolTray({ onToolClick }: ToolTrayProps) {
+export function ToolTray({ isOpen = true, onToolClick }: ToolTrayProps) {
   const toolStates = useChatStore((s) => s.toolStates)
   const isMobile = useIsMobile()
 
@@ -53,15 +54,20 @@ export function ToolTray({ onToolClick }: ToolTrayProps) {
     [onToolClick],
   )
 
+  // On mobile, always show icon-only rail regardless of isOpen
+  // On desktop, isOpen controls full vs icon-only
+  const showFullTray = !isMobile && isOpen
+  const trayWidth = isMobile ? 48 : isOpen ? 220 : 48
+
   return (
     <aside
       className="flex h-full shrink-0 flex-col border-r border-[var(--mm-border)] bg-[var(--mm-bg-secondary)] transition-[width] duration-[var(--mm-duration-base)] ease-[var(--mm-ease)]"
-      style={{ width: isMobile ? 48 : 220 }}
+      style={{ width: trayWidth }}
       role="complementary"
       aria-label="Tool tray"
     >
       {/* Header */}
-      {!isMobile && (
+      {showFullTray && (
         <div className="border-b border-[var(--mm-border)] px-4 py-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--mm-text-muted)]">
             Tools
@@ -70,14 +76,14 @@ export function ToolTray({ onToolClick }: ToolTrayProps) {
       )}
 
       {/* Tool list */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2" style={{ scrollbarGutter: 'stable' }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 mm-scrollbar" style={{ scrollbarGutter: 'stable' }}>
         <ul className="flex flex-col gap-0.5 px-1" role="list">
           {tools.map((tool) => {
             const status: ToolStatus = toolStates[tool.name] ?? 'idle'
             return (
               <li key={tool.name}>
-                {isMobile ? (
-                  /* Icon-only mobile view */
+                {!showFullTray ? (
+                  /* Icon-only collapsed / mobile view */
                   <button
                     type="button"
                     onClick={() => handleToolClick(tool.triggerSyntax)}
@@ -118,7 +124,7 @@ export function ToolTray({ onToolClick }: ToolTrayProps) {
       </div>
 
       {/* Footer: tool count */}
-      {!isMobile && (
+      {showFullTray && (
         <div className="border-t border-[var(--mm-border)] px-4 py-2">
           <span className="text-[10px] font-mono text-[var(--mm-text-muted)]">
             {tools.length} tools available

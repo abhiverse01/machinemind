@@ -35,7 +35,8 @@ function mapRuleIdToIntent(ruleId: string): IntentCategory {
     case 'OPIN':   return 'QUESTION_OPINION'
     case 'MATH':   return 'MATH'
     case 'TIME':   return 'TIME'
-    case 'CONV':   return 'CONVERT'
+    case 'CONV':   return 'CONVERT'  // CONV_* = conversion rules (CONV_001-016)
+    case 'TALK':   return 'SMALL_TALK' // TALK_* = conversational rules (TALK_001-022)
     case 'ENC':    return 'ENCODE'
     case 'HASH':   return 'HASH'
     case 'COLR':   return 'COLOR'
@@ -85,7 +86,9 @@ export function classify(
 ): ClassifiedIntent {
 
   // ── Step 1: Check RULES array (sorted by priority, highest first) ──
-  for (const rule of RULES) {
+  // Sort rules by priority descending so higher-priority rules match first
+  const sortedRules = [...RULES].sort((a, b) => b.priority - a.priority)
+  for (const rule of sortedRules) {
     // If the rule requires a context flag, verify it exists
     if (rule.contextRequired !== null && rule.contextRequired !== 'ANY' && !contextFlags.has(rule.contextRequired)) {
       continue
@@ -100,7 +103,8 @@ export function classify(
     for (const pattern of rule.patterns) {
       // Reset lastIndex for stateful regexes
       pattern.lastIndex = 0
-      if (pattern.test(normalised) || pattern.test(input)) {
+      const cleanedInput = parsedInput?.cleaned ?? normalised
+      if (pattern.test(normalised) || pattern.test(input) || pattern.test(cleanedInput)) {
         return {
           intent: mapRuleIdToIntent(rule.id),
           confidence: parsedInput ? Math.min(1, parsedInput.confidence + 0.1) : 1.0,
@@ -225,11 +229,15 @@ export function classifyInput(
   const { tokens: correctedTokens, corrections } = FuzzyMatcher.correctSentence(fuzzyTokens)
 
   // Update parsedInput with corrections
+  const correctedCleaned = correctedTokens.join(' ')
+  // If cleaning emptied the input (e.g., all fillers stripped from a greeting like "hey"),
+  // fall back to the original raw input so the classifier still has something to match.
+  const finalCleaned = correctedCleaned.length > 0 ? correctedCleaned : rawInput.trim()
   const updatedParsedInput: ParsedInput = {
     ...parsedInput,
     corrections: [...parsedInput.corrections, ...corrections],
     wasCorrected: parsedInput.wasCorrected || corrections.length > 0,
-    cleaned: correctedTokens.join(' '),
+    cleaned: finalCleaned,
   }
 
   // Step 3: Tokenizer — normalize and tokenize

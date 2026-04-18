@@ -151,8 +151,8 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
   // Already booted — render nothing
   if (alreadyBooted) return null
 
-  // Done and dismissed — render nothing
-  if (done && dismissedRef.current) return null
+  // Done (either by natural completion or keypress dismissal) — render nothing
+  if (done) return null
 
   return (
     <div

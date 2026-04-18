@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useCallback, useRef, useState, useEffect, type KeyboardEvent, type FormEvent } from 'react'
+import { forwardRef, useCallback, useRef, useState, useEffect, type KeyboardEvent, type FormEvent } from 'react'
 import { useChat } from '@/hooks/useChat'
 
 const MAX_HEIGHT = 160
@@ -22,11 +22,27 @@ const PLACEHOLDERS = [
   'try: "remember that mykey is abc123"',
 ]
 
-export function InputBar() {
+export const InputBar = forwardRef<HTMLTextAreaElement>(function InputBar(_props, forwardedRef) {
   const { send, isStreaming } = useChat()
   const [value, setValue] = useState('')
   const [placeholderIdx, setPlaceholderIdx] = useState(0)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const internalRef = useRef<HTMLTextAreaElement>(null)
+
+  // Combine forwarded ref with internal ref
+  const setRefs = useCallback(
+    (el: HTMLTextAreaElement | null) => {
+      internalRef.current = el
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(el)
+      } else if (forwardedRef) {
+        (forwardedRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el
+      }
+    },
+    [forwardedRef],
+  )
+
+  // Use internalRef for all operations
+  const textareaRef = internalRef
 
   // Rotate placeholder every 8 seconds
   useEffect(() => {
@@ -90,7 +106,7 @@ export function InputBar() {
       className="flex items-end gap-2 border-t border-[var(--mm-border)] bg-[var(--mm-bg-primary)] px-4 py-3"
     >
       <textarea
-        ref={textareaRef}
+        ref={setRefs}
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -144,4 +160,4 @@ export function InputBar() {
       </button>
     </form>
   )
-}
+})

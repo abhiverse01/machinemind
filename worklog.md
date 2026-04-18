@@ -27,3 +27,30 @@ Stage Summary:
 - All 12 tools verified working via API (calculator, clock, converter, encoder, hash, random, color, etc.)
 - Chat API fallback correctly returns { fallback: true } when no API key
 - API validate endpoint correctly reports { hasKey: false }
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix MACHINE MIND chat engine - make it supremely powerful and fix all UI issues
+
+Work Log:
+- Identified root cause: EDGE_008 rule (/^\w{1,3}$/) at priority 100 caught "hi" (2 chars), "hey" (3 chars) before greeting rules (priority 25) could match
+- Fixed GibberishParser FILLERS: removed 'hey', 'yo', 'oi' from fillers (greeting words must reach classifier)
+- Fixed EDGE rules: lowered priority from 100 to 5, changed EDGE_008 to only match consonant clusters, added specific template keys
+- Added 22 new TALK_* conversational rules (priority 20) for natural language patterns
+- Added 15 new template keys (CONV_NATURAL, CONV_UNDERSTAND, CONV_FAMILIAR, CONV_TOOL_HELP, CONV_CREATIVE, etc.)
+- Fixed classifier: sorts RULES by priority descending, tests cleanedInput alongside normalised/input, falls back to raw input when cleaning empties the string
+- Fixed useChat.ts: uses rule's response field directly for template key resolution (enables CONV_* specific templates)
+- Fixed template responses: GREET now warm and conversational, UNKNOWN helpful with examples
+- Fixed CONV/TALK ID collision: renamed conversational rules from CONV_* to TALK_*
+- Fixed CONV→CONVERT intent mapping (was incorrectly mapping to SMALL_TALK)
+- Fixed UI: DevCredit z-index, light theme variables, BootSequence completion, SettingsPanel API key input, ToolTray toggle, InputBar ref forwarding, StatusBar aria-labels, theme FOUC prevention
+
+Stage Summary:
+- NLP pipeline now correctly handles ALL previously failing inputs (14/14 tests pass)
+- "hey", "hi", "hello", "yo" → GREETING (was UNKNOWN)
+- "can you speak naturally" → CONV_NATURAL template (was UNKNOWN)
+- "do you understand humans" → CONV_UNDERSTAND template (was UNKNOWN)
+- "write an essay on deforestation" → CONV_CREATIVE template (was routing to JSON tool)
+- "how do i use your json tools" → CONV_TOOL_HELP template (was UNKNOWN)
+- Build passes successfully

@@ -31,6 +31,7 @@ export function StatusBar({
         flex h-8 shrink-0 items-center justify-between
         border-b border-[var(--mm-border)] bg-[var(--mm-bg-primary)] px-3
       "
+      aria-label="Application status bar"
     >
       {/* Left: Menu toggle + Logo */}
       <div className="flex items-center gap-2">

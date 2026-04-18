@@ -3,6 +3,7 @@
 import { useCallback, useRef } from 'react'
 import { useChatStore } from '@/store/chat'
 import { classifyInput } from '@/lib/nlp/classifier'
+import { RULES } from '@/lib/nlp/rules'
 import { pickTemplate } from '@/lib/composer/templates'
 import { formatWithTone } from '@/lib/composer/personality'
 import { contextMemory } from '@/lib/memory/context'
@@ -108,9 +109,14 @@ export function useChat() {
       }
 
       // 10. Rule engine: compose response from templates with personality
-      const templateKey = classification.matchedRuleId
-        ? getTemplateKeyFromIntent(classification.intent)
-        : 'UNKNOWN'
+      // When a rule matched, use the rule's response field (specific template key like CONV_NATURAL)
+      // When no rule matched (fallback), use the intent-to-template mapping
+      let templateKey = 'UNKNOWN'
+      if (classification.matchedRuleId) {
+        // Look up the matched rule's response field for the specific template key
+        const matchedRule = RULES.find(r => r.id === classification.matchedRuleId)
+        templateKey = matchedRule?.response ?? getTemplateKeyFromIntent(classification.intent)
+      }
 
       const rawResponse = pickTemplate(templateKey)
       const response = formatWithTone(rawResponse, tone, false)
@@ -358,9 +364,9 @@ function getTemplateKeyFromIntent(intent: string): string {
     AFFIRMATION: 'AFFIRM',
     NEGATION: 'NEGATE',
     QUESTION_META: 'IDENTITY',
-    QUESTION_FACTUAL: 'UNKNOWN',
+    QUESTION_FACTUAL: 'CONV_QUESTION',
     QUESTION_OPINION: 'SMALL_TALK_OPINION',
-    COMMAND: 'UNKNOWN',
+    COMMAND: 'CONV_QUESTION',
     MATH: 'TOOL_RESULT',
     TIME: 'TOOL_RESULT',
     CONVERT: 'TOOL_RESULT',
@@ -376,7 +382,7 @@ function getTemplateKeyFromIntent(intent: string): string {
     FOLLOW_UP: 'FOLLOW_UP',
     SMALL_TALK: 'SMALL_TALK_STATUS',
     EMOTIONAL: 'EMOTIONAL_SOFT',
-    CONFUSION: 'CLARIFY_LAST',
+    CONFUSION: 'CONV_CONFUSED',
     REPAIR: 'REPAIR_REQUEST',
     PRESENCE: 'PRESENCE_CONFIRM',
     WORD: 'TOOL_RESULT',
