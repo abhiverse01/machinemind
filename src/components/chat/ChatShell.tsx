@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // MACHINE MIND — ChatShell
 // Three-panel layout orchestrator: Status bar, Tool tray, Chat.
-// Responsive: tray collapses to icon rail on mobile (≤768px).
+// Responsive: tray collapses to icon rail on mobile (<=768px).
+// Integrates: SettingsPanel, BootSequence, ToolTray, StatusBar.
 // ─────────────────────────────────────────────────────────────
 
 'use client'
@@ -9,20 +10,28 @@
 import { useState, useCallback, useRef } from 'react'
 import { useChatStore } from '@/store/chat'
 import { useKeyboard } from '@/hooks/useKeyboard'
+
 import { ChatHistory } from './ChatHistory'
 import { InputBar } from './InputBar'
+import { ToolTray } from '@/components/tools/ToolTray'
+import { SettingsPanel } from '@/components/ui/SettingsPanel'
+import { BootSequence } from '@/components/ui/BootSequence'
 
 // ── Status Bar ──────────────────────────────────────────────
 
 function StatusBar({
   mode,
+  isStreaming,
   onToggleMode,
   onToggleTray,
+  onOpenSettings,
   trayOpen,
 }: {
   mode: string
+  isStreaming: boolean
   onToggleMode: () => void
   onToggleTray: () => void
+  onOpenSettings: () => void
   trayOpen: boolean
 }) {
   return (
@@ -55,13 +64,17 @@ function StatusBar({
           </svg>
         </button>
 
-        <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-[var(--mm-text-primary)]">
-          <span className="inline-block size-2 rounded-full bg-[var(--mm-success)]" />
+        <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-[var(--mm-text-primary)]" style={{ fontFamily: 'var(--font-mono, monospace)' }}>
+          {/* Pulsing dot — indigo idle, fast-pulse when streaming */}
+          <span
+            className={`inline-block size-2 rounded-full bg-[var(--mm-success)] ${isStreaming ? 'mm-animate-streaming' : 'mm-animate-status-dot'}`}
+            style={{ willChange: 'transform' }}
+          />
           MACHINE MIND
         </span>
       </div>
 
-      {/* Center: Mode toggle */}
+      {/* Center: Mode pill */}
       <button
         onClick={onToggleMode}
         className="
@@ -72,13 +85,14 @@ function StatusBar({
         "
         aria-label={`Switch mode (current: ${mode})`}
       >
-        {mode === 'rule_engine' ? 'Rule Engine' : 'AI Relay'}
+        {mode === 'rule_engine' ? 'Rule Engine' : 'AI Relay Active'}
       </button>
 
-      {/* Right: Settings */}
+      {/* Right: Gear icon → opens SettingsPanel */}
       <button
+        onClick={onOpenSettings}
         className="flex size-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--mm-bg-tertiary)]"
-        aria-label="Settings"
+        aria-label="Open settings"
       >
         <svg
           width="14"
@@ -98,134 +112,34 @@ function StatusBar({
   )
 }
 
-// ── Tool Tray ───────────────────────────────────────────────
-
-const TOOLS = [
-  { id: 'calculator', label: 'Math', icon: '∑' },
-  { id: 'color', label: 'Color', icon: '◆' },
-  { id: 'converter', label: 'Convert', icon: '⇄' },
-  { id: 'encoder', label: 'Encode', icon: '{ }' },
-  { id: 'hash', label: 'Hash', icon: '#' },
-  { id: 'regex', label: 'Regex', icon: '.*' },
-  { id: 'random', label: 'Random', icon: '🎲' },
-  { id: 'clock', label: 'Clock', icon: '⏱' },
-  { id: 'memory', label: 'Memory', icon: '📌' },
-  { id: 'json', label: 'JSON', icon: '{}' },
-  { id: 'word', label: 'Words', icon: 'Aa' },
-  { id: 'sysinfo', label: 'System', icon: '⚙' },
-]
-
-function ToolTray({ open, toolStates }: { open: boolean; toolStates: Record<string, string> }) {
-  return (
-    <aside
-      className={`
-        shrink-0 overflow-hidden border-r border-[var(--mm-border)] bg-[var(--mm-bg-secondary)]
-        transition-[width] duration-200 ease-[var(--mm-ease,cubic-bezier(0.4,0,0.2,1))]
-        ${open ? 'w-[220px]' : 'w-12'}
-      `}
-      aria-label="Tool tray"
-    >
-      <div className="flex h-full flex-col">
-        {/* Tray header */}
-        {open && (
-          <div className="border-b border-[var(--mm-border)] px-3 py-2">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-[var(--mm-text-muted)]">
-              Tools
-            </h2>
-          </div>
-        )}
-
-        {/* Tool list */}
-        <nav className="flex-1 overflow-y-auto py-1">
-          {TOOLS.map((tool) => {
-            const status = toolStates[tool.id]
-            const statusColor =
-              status === 'running'
-                ? 'bg-amber-400'
-                : status === 'done'
-                  ? 'bg-[var(--mm-success)]'
-                  : status === 'error'
-                    ? 'bg-[var(--mm-error)]'
-                    : 'bg-[var(--mm-text-muted)]'
-
-            return (
-              <button
-                key={tool.id}
-                className={`
-                  flex w-full items-center gap-2.5
-                  transition-colors duration-100
-                  hover:bg-[var(--mm-bg-tertiary)]
-                  ${open ? 'px-3 py-2' : 'justify-center px-0 py-2'}
-                `}
-                title={tool.label}
-                aria-label={`${tool.label} tool${status ? ` (${status})` : ''}`}
-              >
-                <span
-                  className={`
-                    flex shrink-0 items-center justify-center
-                    rounded-md text-[11px] font-bold
-                    ${open
-                      ? 'size-7 bg-[var(--mm-accent-muted)] text-[var(--mm-accent)]'
-                      : 'size-7 text-[var(--mm-text-muted)]'
-                    }
-                  `}
-                  style={{ fontFamily: 'var(--font-mono, monospace)' }}
-                >
-                  {tool.icon}
-                </span>
-
-                {open && (
-                  <span className="flex flex-1 items-center justify-between">
-                    <span className="text-xs font-medium text-[var(--mm-text-secondary)]">
-                      {tool.label}
-                    </span>
-                    <span
-                      className={`inline-block size-1.5 rounded-full ${statusColor} ${status === 'running' ? 'animate-pulse' : ''}`}
-                    />
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
-        {/* Tray footer */}
-        {open && (
-          <div className="border-t border-[var(--mm-border)] px-3 py-2">
-            <p className="text-[10px] text-[var(--mm-text-muted)]">
-              Type{' '}
-              <code
-                className="rounded bg-[var(--mm-bg-tertiary)] px-1"
-                style={{ fontFamily: 'var(--font-mono, monospace)' }}
-              >
-                !tool
-              </code>{' '}
-              to invoke
-            </p>
-          </div>
-        )}
-      </div>
-    </aside>
-  )
-}
-
 // ── Shell (main export) ─────────────────────────────────────
 
 export function ChatShell() {
   const mode = useChatStore((s) => s.mode)
+  const isStreaming = useChatStore((s) => s.isStreaming)
   const setMode = useChatStore((s) => s.setMode)
-  const toolStates = useChatStore((s) => s.toolStates)
   const clearSession = useChatStore((s) => s.clearSession)
-  const inputBarRef = useRef<HTMLTextAreaElement | null>(null)
 
   const [trayOpen, setTrayOpen] = useState(() =>
     typeof window !== 'undefined' && window.innerWidth >= 768,
   )
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // Check sessionStorage synchronously to avoid flash of boot screen
+  const [booting, setBooting] = useState(() =>
+    typeof window === 'undefined' || !sessionStorage.getItem('mm_booted')
+  )
+  const inputBarRef = useRef<HTMLTextAreaElement | null>(null)
 
   const toggleTray = useCallback(() => setTrayOpen((v) => !v), [])
 
   const toggleMode = useCallback(() => {
-    setMode(mode === 'rule_engine' ? 'ai_relay' : 'rule_engine')
+    // If switching to AI relay, check if key exists first
+    if (mode === 'rule_engine') {
+      // Open settings to let user enable AI mode through the proper channel
+      setSettingsOpen(true)
+      return
+    }
+    setMode('rule_engine')
   }, [mode, setMode])
 
   // Keyboard shortcuts
@@ -233,22 +147,33 @@ export function ChatShell() {
     onToggleToolTray: toggleTray,
     onClearSession: clearSession,
     onFocusInput: () => inputBarRef.current?.focus(),
+    onToggleSettings: () => setSettingsOpen((v) => !v),
   })
+
+  if (booting) {
+    return (
+      <BootSequence
+        onComplete={() => setBooting(false)}
+      />
+    )
+  }
 
   return (
     <div className="flex h-full flex-col bg-[var(--mm-bg-primary)]">
       {/* Status bar — 32px fixed */}
       <StatusBar
         mode={mode}
+        isStreaming={isStreaming}
         onToggleMode={toggleMode}
         onToggleTray={toggleTray}
+        onOpenSettings={() => setSettingsOpen(true)}
         trayOpen={trayOpen}
       />
 
       {/* Main area: tray + chat */}
       <div className="flex min-h-0 flex-1">
         {/* Tool tray */}
-        <ToolTray open={trayOpen} toolStates={toolStates} />
+        <ToolTray />
 
         {/* Chat panel */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -256,6 +181,12 @@ export function ChatShell() {
           <InputBar />
         </div>
       </div>
+
+      {/* Settings panel drawer */}
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   )
 }
