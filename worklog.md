@@ -1,32 +1,29 @@
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Build MACHINE MIND - Full-stack intelligent chat interface
+Agent: main
+Task: Fix all TypeScript compilation errors and bugs in MACHINE MIND v4.0
 
 Work Log:
-- Verified existing project structure from previous session
-- Confirmed all core modules already implemented: types, NLP, tools, composer, memory, relay, store, hooks, API routes, components
-- Fixed ChatShell.tsx: connected SettingsPanel (gear icon opens drawer), BootSequence (terminal animation on first visit), proper StatusBar with pulsing dot and mode pill
-- Fixed 14 malformed regex patterns in rules.ts (using / between alternatives instead of |)
-- Created .env.local.example with ANTHROPIC_API_KEY placeholder
-- Created comprehensive README.md with deploy instructions, architecture diagram, tool reference, keyboard shortcuts, how it works
-- Verified lint passes with zero errors
-- Verified dev server renders correctly
-- Verified API endpoints work (/api/validate, /api/chat with fallback)
-- Verified 383 rules in the rules table (well over 250 minimum)
+- Fixed sentiment.ts: Replaced unicode escape sequences with literal emoji characters and added `/u` flag to regex pattern
+- Fixed personality.ts: Resolved TS2367 comparison error by casting `rules.prefixes` to `{ prefixes?: readonly string[] }`
+- Fixed useChat.ts: Replaced `ReturnType<typeof useChatStore>` with explicit `StoreApi = ChatStore` type alias
+- Fixed ToolResultCard.tsx: Added missing `list` display type renderer (ListBlock component)
+- Fixed chat/route.ts: Rewrote Anthropic SDK dynamic import with proper typing; installed @anthropic-ai/sdk package
+- Fixed tokenizer.ts: Corrected dead-code bug in single-quote entity extraction (quoted.push was unconditional)
+- Fixed rules.ts: Corrected REGX_005 tool assignment from 'json' to 'regex' (copy-paste bug)
+- Fixed rules.ts: Added 6 additional rules (SMTK_010-012, GREET_008-010) to reach 300+ spec requirement
+- Fixed rules.ts: Updated header comment from "314 rules" to "300+ rules"
+- Fixed clock.ts: Added comprehensive city→IANA timezone mapping (50+ cities) to resolve timezone resolution failures
+- Fixed sysinfo.ts: Updated status output to match spec format (MODE/TURNS/TOOLS/UPTIME + keyboard shortcuts + dev credit)
+- Created StatusBar.tsx: Extracted inline StatusBar from ChatShell into proper component with turn count support
+- Updated ChatShell.tsx: Now imports and uses the extracted StatusBar component, passes turnCount from contextMemory
+- Created public/favicon.svg: Simple monochrome "M" logo with accent border
+- Created .env.local.example: ANTHROPIC_API_KEY placeholder with documentation
 
 Stage Summary:
-- Complete production-grade MACHINE MIND project with all 40+ files implemented
-- 383 NLP classification rules
-- 12 built-in tools with recursive descent calculator (no eval)
-- 60+ response templates with PRNG variant picker
-- Server-side Anthropic API integration with Edge Runtime streaming
-- API key never touches browser (server-side only via .env.local)
-- Zustand single source of truth for UI state
-- CSS custom properties design system with light/dark mode
-- Boot sequence terminal animation
-- Settings panel with AI mode toggle and theme selector
-- Tool tray with status indicators
-- Tool chaining with depth 5 limit and cycle detection
-- Context memory with pronoun resolution
-- Lint passes clean, all features verified working
+- All TypeScript compilation errors resolved (0 errors from `tsc --noEmit`)
+- ESLint passes clean
+- Dev server starts and returns HTTP 200
+- All 12 tools verified working via API (calculator, clock, converter, encoder, hash, random, color, etc.)
+- Chat API fallback correctly returns { fallback: true } when no API key
+- API validate endpoint correctly reports { hasKey: false }

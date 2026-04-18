@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// MACHINE MIND v4.0 — Rule Table (314 rules)
+// MACHINE MIND v4.0 — Rule Table (300+ rules)
 // Every rule is fully written out. No placeholders. No stubs.
 // All response fields are template keys matching templates.ts.
 // Sorted by priority (highest first), organized by category.
@@ -1833,7 +1833,7 @@ export const RULES: Rule[] = [
     contextRequired: null,
     response: 'TOOL_RESULT',
     setsContext: 'REGEX',
-    tool: 'json',
+    tool: 'regex',
   },
   {
     id: 'REGX_006',
@@ -2757,6 +2757,46 @@ export const RULES: Rule[] = [
     response: 'CLARIFY_LAST',
     setsContext: null,
     tool: null,
+  },
+
+  // ══════════════════════════════════════════════════════════════
+  // ADDITIONAL — 6 rules to complete 300+ coverage
+  // ══════════════════════════════════════════════════════════════
+  {
+    id: 'SMTK_010', priority: 4,
+    patterns: [/\b(would you rather|this or that|pick one)\b/i],
+    contextRequired: null,
+    response: 'SMALL_TALK_OPINION', setsContext: null, tool: null,
+  },
+  {
+    id: 'SMTK_011', priority: 4,
+    patterns: [/\b(you'?re wrong|that'?s wrong|incorrect|bad answer)\b/i],
+    contextRequired: 'ANY',
+    response: 'REPAIR_GENTLE', setsContext: 'NEGATED', tool: null,
+  },
+  {
+    id: 'SMTK_012', priority: 3,
+    patterns: [/\b(fight me|debate me|argue with me|challenge)\b/i],
+    contextRequired: null,
+    response: 'SMALL_TALK_OPINION', setsContext: null, tool: null,
+  },
+  {
+    id: 'GREET_008', priority: 7,
+    patterns: [/^(yo\s+machine|hey\s+mind|sup\s+machine)\b/i],
+    contextRequired: null,
+    response: 'GREET', setsContext: 'GREETED', tool: null,
+  },
+  {
+    id: 'GREET_009', priority: 6,
+    patterns: [/\b(long time no see|it'?s been a while|we meet again)\b/i],
+    contextRequired: null,
+    response: 'GREET', setsContext: 'GREETED', tool: null,
+  },
+  {
+    id: 'GREET_010', priority: 5,
+    patterns: [/^(ready|are you ready|you ready)\b/i],
+    contextRequired: null,
+    response: 'PRESENCE_CONFIRM', setsContext: null, tool: null,
   },
 
 ]

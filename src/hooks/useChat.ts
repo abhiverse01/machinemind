@@ -9,7 +9,9 @@ import { contextMemory } from '@/lib/memory/context'
 import { executeTool, executeChain } from '@/lib/tools/registry'
 import { sysInfoState } from '@/lib/tools/sysinfo'
 import { memoryStore } from '@/lib/tools/memory'
-import type { Message, Tone } from '@/lib/types'
+import type { Message, Tone, ChatStore } from '@/lib/types'
+
+type StoreApi = ChatStore
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -133,7 +135,7 @@ export function useChat() {
 async function handleToolExecution(
   toolName: string,
   input: string,
-  store: ReturnType<typeof useChatStore>,
+  store: StoreApi,
   tone: Tone,
 ) {
   store.setToolStatus(toolName, 'running')
@@ -175,7 +177,7 @@ async function handleToolExecution(
 
 async function handleToolChain(
   chain: string,
-  store: ReturnType<typeof useChatStore>,
+  store: StoreApi,
 ) {
   store.setStreaming(true)
 
@@ -213,7 +215,7 @@ async function handleToolChain(
 
 async function handleAIRelay(
   input: string,
-  store: ReturnType<typeof useChatStore>,
+  store: StoreApi,
   abortRef: React.RefObject<AbortController | null>,
   tone: Tone,
   parsedInput?: import('@/lib/types').ParsedInput,
@@ -321,7 +323,7 @@ async function handleAIRelay(
 }
 
 async function addAssistantMessage(
-  store: ReturnType<typeof useChatStore>,
+  store: StoreApi,
   content: string,
   displayType: Message['displayType'],
   toolName?: string,

@@ -2,6 +2,7 @@
 // MACHINE MIND — Streaming Chat Handler (POST)
 // v4.0: Tone-adaptive system prompt, parsedInput support.
 // Edge Runtime + Anthropic SDK for streaming SSE.
+// API key lives in process.env only — never touches browser.
 // ─────────────────────────────────────────────────────────────
 
 import { NextRequest } from 'next/server'
@@ -9,7 +10,15 @@ import { NextRequest } from 'next/server'
 export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
-  const { messages, context, tone, parsedInput } = await req.json()
+  const body = await req.json() as {
+    messages?: Array<{ role: string; content: string }>
+    context?: string
+    toolResults?: string
+    tone?: string
+    parsedInput?: Record<string, unknown>
+  }
+
+  const { messages = [], context, tone, toolResults } = body
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
@@ -17,15 +26,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Dynamic import for Anthropic SDK (Edge-compatible)
-  let Anthropic: typeof import('@anthropic-ai/sdk').default
+  // If SDK is not installed, silently fall back to rule engine
+  let client: InstanceType<typeof import('@anthropic-ai/sdk')['default']> | null = null
   try {
     const mod = await import('@anthropic-ai/sdk')
-    Anthropic = mod.default
+    const Anthropic = mod.default
+    client = new Anthropic({ apiKey })
   } catch {
     return Response.json({ fallback: true }, { status: 200 })
   }
-
-  const client = new Anthropic({ apiKey })
 
   // Tone-adaptive system prompt
   const toneInstruction: Record<string, string> = {
@@ -43,15 +52,19 @@ export async function POST(req: NextRequest) {
     'Answer in the fewest words that are complete and correct.',
     toneInstruction[tone ?? 'neutral'] ?? toneInstruction.neutral,
     context ? `Prior context: ${context}` : '',
+    toolResults ? `Tool results this turn: ${toolResults}` : '',
     'Built by Abhishek Shah · abhishekshah.vercel.app',
   ].filter(Boolean).join('\n')
 
   try {
-    const stream = await client.messages.stream({
+    const stream = client.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
-      messages,
+      messages: messages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
     })
 
     const encoder = new TextEncoder()

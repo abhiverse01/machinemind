@@ -125,7 +125,7 @@ function stripForbidden(text: string): string {
  */
 export function getTonePrefix(tone: Tone): string {
   const rules = PERSONA.TONE_RULES[tone]
-  const prefixes = 'prefixes' in rules ? rules.prefixes : undefined
+  const prefixes = 'prefixes' in rules ? (rules as { prefixes?: readonly string[] }).prefixes : undefined
   if (!prefixes || prefixes.length === 0) return ''
   const idx = Math.floor(Math.random() * prefixes.length)
   return prefixes[idx]

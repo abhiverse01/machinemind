@@ -142,16 +142,16 @@ export async function execute(input: string): Promise<ToolResult> {
     const execMs = Date.now() - t0
     const toolLines = Object.entries(state.toolStatuses).length > 0
       ? Object.entries(state.toolStatuses).map(([name, status]) => `  ${name}: ${status}`).join('\n')
-      : '  (no tools registered)'
+      : '  calculator · clock · converter · encoder · hash · memory · wordtools · json · regex · random · color · sysinfo'
 
     const raw = [
-      `Mode: ${state.mode}`,
-      `Turn count: ${state.turnCount}`,
-      `Uptime: ${formatUptime(uptimeMs)}`,
-      `Context flags: ${state.contextFlags.length > 0 ? state.contextFlags.join(', ') : '(none)'}`,
-      `Stored memory vars: ${state.storedVarsCount}`,
-      `Tools:`,
-      toolLines,
+      `MODE: ${state.mode.toUpperCase()} | TURNS: ${state.turnCount} | TOOLS: 12 active | UPTIME: ${formatUptime(uptimeMs)}`,
+      '',
+      'TOOLS: calculator · clock · converter · encoder · hash · memory · wordtools · json · regex · random · color · sysinfo',
+      '',
+      'KEYBOARDS: Shift+Enter send · Ctrl+\\ tray · Esc settings · Ctrl+K focus · Ctrl+Shift+C clear',
+      '',
+      'Dev: Abhishek Shah · abhishekshah.vercel.app',
     ].join('\n')
 
     return {

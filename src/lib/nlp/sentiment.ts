@@ -47,13 +47,13 @@ const TONE_SIGNALS: Record<ToneCategory, ToneSignal> = {
   playful: {
     words: [
       'lol', 'lmao', 'haha', 'hehe', 'lmfao', 'rofl', 'xd', ':)',
-      ':D', '\u{1F602}', '\u{1F604}', '\u{1F923}', 'fun', 'cool', 'nice',
+      ':D', '😂', '😄', '🤣', 'fun', 'cool', 'nice',
       'sweet', 'dope', 'sick', 'rad', 'epic', 'awesome', 'wild',
     ],
     patterns: [
       /lol+/i,
       /hah+a+/i,
-      /\u{1F602}|\u{1F923}|\u{1F604}/,
+      /😂|🤣|😄/u,
     ],
     weight: 1.0,
   },

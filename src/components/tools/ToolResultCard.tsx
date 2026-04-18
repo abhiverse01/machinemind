@@ -133,6 +133,21 @@ function ColorSwatch({ data }: { data: unknown }) {
   )
 }
 
+// ── List renderer ───────────────────────────────────────────
+function ListBlock({ data }: { data: unknown }) {
+  const items = Array.isArray(data) ? data : [data]
+  return (
+    <ul className="space-y-1 text-sm text-[var(--mm-text-primary)]">
+      {items.map((item, i) => (
+        <li key={i} className="flex items-start gap-2">
+          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--mm-accent)]" />
+          <span className="whitespace-pre-wrap break-words">{String(item)}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 // ── Error card renderer ─────────────────────────────────────
 function ErrorCard({ content, data }: { content: string; data: unknown }) {
   const errorMessage =
@@ -176,6 +191,7 @@ const RENDERERS: Record<
   table: (_content, data) => <TableBlock data={data} />,
   color_swatch: (_content, data) => <ColorSwatch data={data} />,
   error: (content, data) => <ErrorCard content={content} data={data} />,
+  list: (_content, data) => <ListBlock data={data} />,
 }
 
 export function ToolResultCard({ toolName, result }: ToolResultCardProps) {

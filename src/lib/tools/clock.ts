@@ -58,6 +58,59 @@ function resolveTimezone(tz: string): string {
   // Abbreviation mapping
   if (TZ_MAP[upper]) return TZ_MAP[upper]
 
+  // City name mapping (common city → IANA timezone)
+  const CITY_MAP: Record<string, string> = {
+    TOKYO: 'Asia/Tokyo',
+    LONDON: 'Europe/London',
+    PARIS: 'Europe/Paris',
+    NEWYORK: 'America/New_York',
+    LOSANGELES: 'America/Los_Angeles',
+    CHICAGO: 'America/Chicago',
+    SYDNEY: 'Australia/Sydney',
+    MELBOURNE: 'Australia/Melbourne',
+    DUBAI: 'Asia/Dubai',
+    SINGAPORE: 'Asia/Singapore',
+    HONGKONG: 'Asia/Hong_Kong',
+    SEOUL: 'Asia/Seoul',
+    MUMBAI: 'Asia/Kolkata',
+    DELHI: 'Asia/Kolkata',
+    KOLKATA: 'Asia/Kolkata',
+    BERLIN: 'Europe/Berlin',
+    MOSCOW: 'Europe/Moscow',
+    SAOPAULO: 'America/Sao_Paulo',
+    TORONTO: 'America/Toronto',
+    VANCOUVER: 'America/Vancouver',
+    AUCKLAND: 'Pacific/Auckland',
+    HONOLULU: 'Pacific/Honolulu',
+    ANCHORAGE: 'America/Anchorage',
+    DENVER: 'America/Denver',
+    BANGKOK: 'Asia/Bangkok',
+    JAKARTA: 'Asia/Jakarta',
+    CAIRO: 'Africa/Cairo',
+    LAGOS: 'Africa/Lagos',
+    NAIROBI: 'Africa/Nairobi',
+    BEIJING: 'Asia/Shanghai',
+    SHANGHAI: 'Asia/Shanghai',
+    TAIPEI: 'Asia/Taipei',
+    KUALALUMPUR: 'Asia/Kuala_Lumpur',
+    ROME: 'Europe/Rome',
+    MADRID: 'Europe/Madrid',
+    AMSTERDAM: 'Europe/Amsterdam',
+    LISBON: 'Europe/Lisbon',
+    STOCKHOLM: 'Europe/Stockholm',
+    OSLO: 'Europe/Oslo',
+    HELSINKI: 'Europe/Helsinki',
+    WARSAW: 'Europe/Warsaw',
+    ISTANBUL: 'Europe/Istanbul',
+    DUBLIN: 'Europe/Dublin',
+    BUENOSAIRES: 'America/Argentina/Buenos_Aires',
+    MEXICOCITY: 'America/Mexico_City',
+    LIMA: 'America/Lima',
+    SANTIAGO: 'America/Santiago',
+    BOGOTA: 'America/Bogota',
+  }
+  if (CITY_MAP[upper]) return CITY_MAP[upper]
+
   // GMT/UTC offset format: GMT+5:30, GMT-8, UTC+8, UTC+5:30
   const offsetMatch = upper.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/)
   if (offsetMatch) {

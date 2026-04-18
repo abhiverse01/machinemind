@@ -479,10 +479,15 @@ export class Tokenizer {
     // Single quotes (but not contractions)
     const singleQuoteRegex = /'([^']+)'/g
     while ((match = singleQuoteRegex.exec(text)) !== null) {
+      // Skip single-word single-quoted items that look like contractions
+      // e.g., 'don't', 'it's' — only push multi-word or longer phrases
       if (match[1].length > 1 && !match[1].includes(' ')) {
-        // Skip single-word single-quoted items that look like contractions
+        // Single-word in single quotes — likely emphasis, not a contraction
+        quoted.push(match[1])
+      } else if (match[1].includes(' ')) {
+        // Multi-word in single quotes — always capture
+        quoted.push(match[1])
       }
-      quoted.push(match[1])
     }
 
     // Backtick quoted
