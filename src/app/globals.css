@@ -289,3 +289,35 @@
 .mm-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--mm-text-muted);
 }
+
+/* ── Dev Credit ──────────────────────────────────────────── */
+.dev-credit {
+  position: fixed;
+  bottom: 14px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--mm-text-muted);
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity var(--mm-duration-base, 220ms) var(--mm-ease, cubic-bezier(0.23, 1, 0.32, 1));
+  z-index: 10;
+  user-select: none;
+}
+
+.dev-credit:hover {
+  opacity: 1;
+  color: var(--mm-accent);
+}
+
+.dev-credit__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mm-accent);
+  opacity: 0.6;
+  flex-shrink: 0;
+}

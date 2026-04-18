@@ -1,22 +1,15 @@
-// ─────────────────────────────────────────────────────────────
-// MACHINE MIND — useChat Hook
-// Send message, handle stream, update store
-// ─────────────────────────────────────────────────────────────
-
 'use client'
 
 import { useCallback, useRef } from 'react'
 import { useChatStore } from '@/store/chat'
-import { Tokenizer } from '@/lib/nlp/tokenizer'
-import { classify } from '@/lib/nlp/classifier'
+import { classifyInput } from '@/lib/nlp/classifier'
 import { pickTemplate } from '@/lib/composer/templates'
+import { formatWithTone } from '@/lib/composer/personality'
 import { contextMemory } from '@/lib/memory/context'
 import { executeTool, executeChain } from '@/lib/tools/registry'
 import { sysInfoState } from '@/lib/tools/sysinfo'
 import { memoryStore } from '@/lib/tools/memory'
-import type { Message, AppMode } from '@/lib/types'
-
-const tokenizer = new Tokenizer()
+import type { Message, Tone } from '@/lib/types'
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -55,23 +48,21 @@ export function useChat() {
         // Special: !help, !status, !tools → show help info directly
         if (toolName === 'help' || toolName === 'tools') {
           const helpResponse = pickTemplate('HELP_RESPONSE')
-          await addAssistantMessage(store, helpResponse, 'text')
+          await addAssistantMessage(store, helpResponse, 'text', undefined, undefined, 'neutral')
           return
         }
 
         if (toolName === 'status') {
-          await handleToolExecution('sysinfo', trimmed, store)
+          await handleToolExecution('sysinfo', trimmed, store, 'neutral')
           return
         }
 
-        // Route to the tool directly
-        await handleToolExecution(toolName, toolInput || trimmed, store)
+        await handleToolExecution(toolName, toolInput || trimmed, store, 'neutral')
         return
       }
 
       // 4. Check for tool chain (pipe syntax)
       if (trimmed.includes('|')) {
-        // Check if it looks like a tool chain
         const chainPattern = /\w+\s+[^|]+\|/
         if (chainPattern.test(trimmed)) {
           await handleToolChain(trimmed, store)
@@ -79,57 +70,51 @@ export function useChat() {
         }
       }
 
-      // 4. Run NLP pipeline
-      const normalised = tokenizer.normalize(trimmed)
-      const tokens = tokenizer.tokenize(normalised)
-      const classification = classify(
-        trimmed,
-        normalised,
-        tokens,
-        contextMemory.getFlags()
-      )
+      // 5. Run full NLP pipeline (GibberishParser → FuzzyMatcher → Tokenizer → Classifier)
+      const classification = classifyInput(trimmed, contextMemory.getFlags())
+      const tone: Tone = classification.parsedInput?.tone ?? 'neutral'
 
-      // 5. Update context flags from matched rule
-      // (This is handled inside classify indirectly, but we also
-      // update context memory based on the classification result)
+      // 6. Update context memory with classification info
       contextMemory.push('system', `Intent: ${classification.intent}`, {
         classification,
       })
 
-      // 6. Check for follow-up with pronoun resolution
+      // 7. Check for follow-up with pronoun resolution
       if (contextMemory.isFollowUp(trimmed)) {
         const lastTopic = contextMemory.expandLastTopic()
         if (lastTopic) {
-          const response = pickTemplate('FOLLOW_UP', {
+          const rawResponse = pickTemplate('FOLLOW_UP', {
             topic: 'previous topic',
             detail: lastTopic,
           })
-          await addAssistantMessage(store, response, 'text')
+          const response = formatWithTone(rawResponse, tone, false)
+          await addAssistantMessage(store, response, 'text', undefined, undefined, tone)
           return
         }
       }
 
-      // 7. If intent has a tool hint, execute the tool
+      // 8. If intent has a tool hint, execute the tool
       if (classification.toolHint) {
-        await handleToolExecution(classification.toolHint, trimmed, store)
+        await handleToolExecution(classification.toolHint, trimmed, store, tone)
         return
       }
 
-      // 8. If mode is 'ai_relay', POST to /api/chat, stream tokens
+      // 9. If mode is 'ai_relay', POST to /api/chat, stream tokens
       if (store.mode === 'ai_relay') {
-        await handleAIRelay(trimmed, store, abortRef)
+        await handleAIRelay(trimmed, store, abortRef, tone, classification.parsedInput)
         return
       }
 
-      // 9. Rule engine: compose response from templates
+      // 10. Rule engine: compose response from templates with personality
       const templateKey = classification.matchedRuleId
         ? getTemplateKeyFromIntent(classification.intent)
         : 'UNKNOWN'
 
-      const response = pickTemplate(templateKey)
-      await addAssistantMessage(store, response, 'text')
+      const rawResponse = pickTemplate(templateKey)
+      const response = formatWithTone(rawResponse, tone, false)
+      await addAssistantMessage(store, response, 'text', undefined, undefined, tone)
 
-      // 10. Update system info state
+      // 11. Update system info state
       sysInfoState.turnCount = contextMemory.turnCount
       sysInfoState.storedVarsCount = memoryStore.list().length
       sysInfoState.contextFlags = [...contextMemory.getFlags()]
@@ -148,7 +133,8 @@ export function useChat() {
 async function handleToolExecution(
   toolName: string,
   input: string,
-  store: ReturnType<typeof useChatStore>
+  store: ReturnType<typeof useChatStore>,
+  tone: Tone,
 ) {
   store.setToolStatus(toolName, 'running')
   store.setStreaming(true)
@@ -159,14 +145,14 @@ async function handleToolExecution(
 
     const content =
       result.status === 'ok'
-        ? pickTemplate('TOOL_RESULT', { result: result.raw })
+        ? formatWithTone(pickTemplate('TOOL_RESULT', { result: result.raw }), tone, true)
         : pickTemplate('TOOL_ERROR', {
             tool: toolName,
             message: String(result.result),
             suggestion: 'Try using !help to see available tools and syntax.',
           })
 
-    await addAssistantMessage(store, content, result.displayType, toolName, result.execMs)
+    await addAssistantMessage(store, content, result.displayType, toolName, result.execMs, tone)
   } catch (err) {
     store.setToolStatus(toolName, 'error')
     const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -178,7 +164,9 @@ async function handleToolExecution(
         suggestion: 'Check your input and try again.',
       }),
       'error',
-      toolName
+      toolName,
+      undefined,
+      tone,
     )
   } finally {
     store.setStreaming(false)
@@ -187,7 +175,7 @@ async function handleToolExecution(
 
 async function handleToolChain(
   chain: string,
-  store: ReturnType<typeof useChatStore>
+  store: ReturnType<typeof useChatStore>,
 ) {
   store.setStreaming(true)
 
@@ -205,7 +193,7 @@ async function handleToolChain(
             suggestion: 'Check each step of your chain.',
           })
 
-    await addAssistantMessage(store, content, result.displayType, 'chain', result.execMs)
+    await addAssistantMessage(store, content, result.displayType, 'chain', result.execMs, 'neutral')
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error'
     await addAssistantMessage(
@@ -216,7 +204,7 @@ async function handleToolChain(
         suggestion: 'Maximum chain depth is 5. Cycles are not allowed.',
       }),
       'error',
-      'chain'
+      'chain',
     )
   } finally {
     store.setStreaming(false)
@@ -226,7 +214,9 @@ async function handleToolChain(
 async function handleAIRelay(
   input: string,
   store: ReturnType<typeof useChatStore>,
-  abortRef: React.RefObject<AbortController | null>
+  abortRef: React.RefObject<AbortController | null>,
+  tone: Tone,
+  parsedInput?: import('@/lib/types').ParsedInput,
 ) {
   store.setStreaming(true)
 
@@ -237,6 +227,7 @@ async function handleAIRelay(
     content: '',
     displayType: 'text',
     timestamp: Date.now(),
+    tone,
   }
   store.addMessage(assistantMsg)
 
@@ -253,7 +244,17 @@ async function handleAIRelay(
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, context }),
+      body: JSON.stringify({
+        messages,
+        context,
+        tone,
+        parsedInput: parsedInput ? {
+          cleaned: parsedInput.cleaned,
+          tone: parsedInput.tone,
+          hedgeLevel: parsedInput.hedgeLevel,
+          confidence: parsedInput.confidence,
+        } : undefined,
+      }),
       signal: controller.signal,
     })
 
@@ -261,23 +262,8 @@ async function handleAIRelay(
       throw new Error(`API error: ${response.status}`)
     }
 
-    const data = await response.json()
-
-    // Check if server fell back to rule engine
-    if (data.fallback) {
-      // Re-run through rule engine
-      const normalised = new Tokenizer().normalize(input)
-      const tokens = new Tokenizer().tokenize(normalised)
-      const classification = classify(input, normalised, tokens, contextMemory.getFlags())
-      const templateKey = getTemplateKeyFromIntent(classification.intent)
-      const ruleResponse = pickTemplate(templateKey)
-      store.updateLastMessage(ruleResponse)
-      contextMemory.push('assistant', ruleResponse)
-      return
-    }
-
-    // Handle streaming response
-    if (data.stream && response.body) {
+    // Handle SSE streaming response
+    if (response.body) {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let fullContent = ''
@@ -303,6 +289,15 @@ async function handleAIRelay(
             if (event.done) {
               store.setStreaming(false)
             }
+            if (event.fallback) {
+              // Server fell back to rule engine
+              const classification = classifyInput(input, contextMemory.getFlags())
+              const templateKey = getTemplateKeyFromIntent(classification.intent)
+              const ruleResponse = formatWithTone(pickTemplate(templateKey), tone, false)
+              store.updateLastMessage(ruleResponse)
+              contextMemory.push('assistant', ruleResponse)
+              return
+            }
           } catch {
             // Skip malformed events
           }
@@ -310,10 +305,6 @@ async function handleAIRelay(
       }
 
       contextMemory.push('assistant', fullContent)
-    } else if (data.content) {
-      // Non-streaming response
-      store.updateLastMessage(data.content)
-      contextMemory.push('assistant', data.content)
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
@@ -334,7 +325,8 @@ async function addAssistantMessage(
   content: string,
   displayType: Message['displayType'],
   toolName?: string,
-  execMs?: number
+  execMs?: number,
+  tone?: Tone,
 ) {
   const msg: Message = {
     id: generateId(),
@@ -344,6 +336,7 @@ async function addAssistantMessage(
     toolName,
     execMs,
     timestamp: Date.now(),
+    tone,
   }
   store.addMessage(msg)
   contextMemory.push('assistant', content, { toolName, execMs })
@@ -363,9 +356,10 @@ function getTemplateKeyFromIntent(intent: string): string {
     AFFIRMATION: 'AFFIRM',
     NEGATION: 'NEGATE',
     QUESTION_META: 'IDENTITY',
-    QUESTION_FACTUAL: 'FACT_UNKNOWN',
-    QUESTION_OPINION: 'OPINION_GENERIC',
-    MATH: 'MATH_RESULT',
+    QUESTION_FACTUAL: 'UNKNOWN',
+    QUESTION_OPINION: 'SMALL_TALK_OPINION',
+    COMMAND: 'UNKNOWN',
+    MATH: 'TOOL_RESULT',
     TIME: 'TOOL_RESULT',
     CONVERT: 'TOOL_RESULT',
     ENCODE: 'TOOL_RESULT',
@@ -375,14 +369,17 @@ function getTemplateKeyFromIntent(intent: string): string {
     RANDOM: 'TOOL_RESULT',
     MEMORY_STORE: 'TOOL_RESULT',
     MEMORY_RECALL: 'TOOL_RESULT',
-    SYSTEM_STATUS: 'TOOL_RESULT',
+    SYSTEM_STATUS: 'SYSINFO',
     CHAIN_TOOL: 'TOOL_CHAIN_RESULT',
     FOLLOW_UP: 'FOLLOW_UP',
     SMALL_TALK: 'SMALL_TALK_STATUS',
+    EMOTIONAL: 'EMOTIONAL_SOFT',
+    CONFUSION: 'CLARIFY_LAST',
+    REPAIR: 'REPAIR_REQUEST',
+    PRESENCE: 'PRESENCE_CONFIRM',
     WORD: 'TOOL_RESULT',
     JSON: 'TOOL_RESULT',
     UNKNOWN: 'UNKNOWN',
-    COMMAND: 'COMMAND_UNKNOWN',
   }
   return mapping[intent] || 'UNKNOWN'
 }

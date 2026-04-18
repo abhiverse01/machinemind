@@ -16,6 +16,7 @@ import { InputBar } from './InputBar'
 import { ToolTray } from '@/components/tools/ToolTray'
 import { SettingsPanel } from '@/components/ui/SettingsPanel'
 import { BootSequence } from '@/components/ui/BootSequence'
+import { DevCredit } from '@/components/ui/DevCredit'
 
 // ── Status Bar ──────────────────────────────────────────────
 
@@ -187,6 +188,9 @@ export function ChatShell() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+
+      {/* Developer attribution */}
+      <DevCredit />
     </div>
   )
 }

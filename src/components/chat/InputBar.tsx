@@ -2,20 +2,39 @@
 // MACHINE MIND — InputBar
 // Auto-resize textarea + accent send button.
 // Enter sends, Shift+Enter for newline. Monospace input.
+// v4.0: Rotating placeholder hints every 8s.
 // ─────────────────────────────────────────────────────────────
 
 'use client'
 
-import { useCallback, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
+import { useCallback, useRef, useState, useEffect, type KeyboardEvent, type FormEvent } from 'react'
 import { useChat } from '@/hooks/useChat'
 
 const MAX_HEIGHT = 160
 const LINE_HEIGHT = 24
 
+const PLACEHOLDERS = [
+  'type anything. i understand humans.',
+  'try: "whats 5km in miles"',
+  'try: "yo hash this: hello world"',
+  'try: !roll 2d6',
+  'try: "encode hey to base64"',
+  'try: "remember that mykey is abc123"',
+]
+
 export function InputBar() {
   const { send, isStreaming } = useChat()
   const [value, setValue] = useState('')
+  const [placeholderIdx, setPlaceholderIdx] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Rotate placeholder every 8 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIdx((prev) => (prev + 1) % PLACEHOLDERS.length)
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [])
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current
@@ -75,7 +94,7 @@ export function InputBar() {
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="Type a message... (! for tools)"
+        placeholder={PLACEHOLDERS[placeholderIdx]}
         disabled={isStreaming}
         rows={1}
         className="

@@ -1,151 +1,94 @@
 // ─────────────────────────────────────────────────────────────
 // MACHINE MIND — Streaming Chat Handler (POST)
-// Critical security boundary: API key never leaves the server.
-// Edge Runtime for streaming response with proper SSE headers.
+// v4.0: Tone-adaptive system prompt, parsedInput support.
+// Edge Runtime + Anthropic SDK for streaming SSE.
 // ─────────────────────────────────────────────────────────────
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
+  const { messages, context, tone, parsedInput } = await req.json()
+
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return Response.json({ fallback: true }, { status: 200 })
+  }
+
+  // Dynamic import for Anthropic SDK (Edge-compatible)
+  let Anthropic: typeof import('@anthropic-ai/sdk').default
   try {
-    const body = await req.json()
-    const { messages, context, toolResults } = body as {
-      messages: Array<{ role: string; content: string }>
-      context?: string
-      toolResults?: string
-    }
+    const mod = await import('@anthropic-ai/sdk')
+    Anthropic = mod.default
+  } catch {
+    return Response.json({ fallback: true }, { status: 200 })
+  }
 
-    // API key comes ONLY from server-side env var
-    // Never from the request body
-    const apiKey = process.env.ANTHROPIC_API_KEY
+  const client = new Anthropic({ apiKey })
 
-    if (!apiKey) {
-      // Fall back to rule engine — return a signal, not an error message
-      return NextResponse.json({ fallback: true }, { status: 200 })
-    }
+  // Tone-adaptive system prompt
+  const toneInstruction: Record<string, string> = {
+    frustrated: 'The user is frustrated. Be extremely concise. No preamble. Just the answer.',
+    urgent: 'The user needs this fast. Lead with the answer.',
+    playful: 'The user is in a playful mood. Match with dry wit. Stay precise.',
+    curious: 'The user wants to understand. Be informative but still concise.',
+    neutral: 'Be direct and precise.',
+  }
 
-    const systemPrompt = `You are MACHINE MIND. Precise. Direct. Minimal. No filler. No apologies. No "certainly!". When you don't know, say so in one sentence. When you do know, be exact.
+  const systemPrompt = [
+    'You are MACHINE MIND. Precise. Direct. Minimal.',
+    'Never say "Great question!" or "Certainly!" or "I\'d be happy to".',
+    'Never apologize for being an AI. Never mention limitations unprompted.',
+    'Answer in the fewest words that are complete and correct.',
+    toneInstruction[tone ?? 'neutral'] ?? toneInstruction.neutral,
+    context ? `Prior context: ${context}` : '',
+    'Built by Abhishek Shah · abhishekshah.vercel.app',
+  ].filter(Boolean).join('\n')
 
-Prior context: ${context || 'None'}
-${toolResults ? `Tool results from this turn: ${toolResults}` : ''}`
-
-    // Stream from Anthropic API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: messages
-          .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m) => ({ role: m.role, content: m.content })),
-        stream: true,
-      }),
+  try {
+    const stream = await client.messages.stream({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      return NextResponse.json(
-        { error: `Anthropic API error: ${response.status}`, details: errorText },
-        { status: response.status }
-      )
-    }
-
-    // Return a ReadableStream of SSE-formatted tokens
     const encoder = new TextEncoder()
-    const reader = response.body?.getReader()
-
-    if (!reader) {
-      return NextResponse.json({ error: 'No response body' }, { status: 500 })
-    }
-
     const readable = new ReadableStream({
       async start(controller) {
-        const decoder = new TextDecoder()
-        let buffer = ''
-
         try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || ''
-
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed || !trimmed.startsWith('data: ')) continue
-
-              const data = trimmed.slice(6)
-              if (data === '[DONE]') {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ done: true, usage: { input_tokens: 0, output_tokens: 0 } })}\n\n`
-                  )
-                )
-                continue
-              }
-
-              try {
-                const parsed = JSON.parse(data)
-
-                if (
-                  parsed.type === 'content_block_delta' &&
-                  parsed.delta?.type === 'text_delta'
-                ) {
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({ token: parsed.delta.text })}\n\n`
-                    )
-                  )
-                }
-
-                if (parsed.type === 'message_delta' && parsed.usage) {
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({
-                        done: true,
-                        usage: {
-                          input_tokens: 0,
-                          output_tokens: parsed.usage.output_tokens || 0,
-                        },
-                      })}\n\n`
-                    )
-                  )
-                }
-              } catch {
-                // Skip malformed JSON
-              }
+          for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify({ token: chunk.delta.text })}\n\n`
+              ))
             }
           }
+          const final = await stream.finalMessage()
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ done: true, usage: final.usage })}\n\n`
+          ))
+          controller.close()
         } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : 'Stream error'
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ error: errorMsg })}\n\n`)
-          )
-        } finally {
+          const msg = err instanceof Error ? err.message : 'Stream error'
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ error: msg })}\n\n`
+          ))
           controller.close()
         }
-      },
+      }
     })
 
     return new Response(readable, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
+        'Connection': 'keep-alive',
+      }
     })
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'Internal error'
-    return NextResponse.json({ error: errorMsg }, { status: 500 })
+    const msg = err instanceof Error ? err.message : 'API error'
+    return Response.json({ fallback: true, error: msg }, { status: 200 })
   }
 }

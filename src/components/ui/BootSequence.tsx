@@ -3,6 +3,8 @@
 // Terminal-style init animation with per-character typing.
 // Skipped if sessionStorage mm_booted is set.
 // Blinking cursor stops on first user keydown.
+// v4.0: Updated boot lines with gibberish parser, fuzzy matcher,
+//       sentiment engine, personality layer.
 // ─────────────────────────────────────────────────────────────
 
 'use client'
@@ -12,21 +14,27 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 interface BootLine {
   text: string
   delay: number
+  color?: 'accent' | 'muted'
   blink?: boolean
 }
 
 const BOOT_LINES: BootLine[] = [
-  { text: '> MACHINE MIND \u2014 initializing', delay: 0 },
-  { text: '  [\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591] rule engine ......... loaded   (250 rules)', delay: 400 },
-  { text: '  [\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591] tool registry ........ ready   (12 tools)', delay: 800 },
-  { text: '  [\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591] context memory ........ armed', delay: 1200 },
-  { text: '  [\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588] nlp core .............. online', delay: 1600 },
-  { text: '', delay: 2000 },
-  { text: '> mode: RULE ENGINE', delay: 2100 },
-  { text: '> type anything. prefix with ! to invoke tools directly.', delay: 2200 },
-  { text: '> try: !help \u2014 or just start talking.', delay: 2300 },
-  { text: '', delay: 2500 },
-  { text: '_', delay: 2600, blink: true },
+  { text: '> MACHINE MIND v4.0 — initializing', delay: 0, color: 'accent' },
+  { text: '  [████████████░░] gibberish parser ......... armed   (human-grade)', delay: 300 },
+  { text: '  [████████████░░] fuzzy matcher ............. online  (typo-tolerant)', delay: 550 },
+  { text: '  [█████████████░] rule engine ............... loaded  (300 rules)', delay: 800 },
+  { text: '  [█████████████░] tool registry ............. ready   (12 tools)', delay: 1050 },
+  { text: '  [██████████████] context memory ............. armed', delay: 1300 },
+  { text: '  [██████████████] sentiment engine .......... online', delay: 1500 },
+  { text: '  [██████████████] personality layer ......... calibrated', delay: 1700 },
+  { text: '', delay: 1900 },
+  { text: '> mode: RULE ENGINE', delay: 2000, color: 'accent' },
+  { text: '> type anything. i understand humans.', delay: 2100 },
+  { text: '> try: "yo whats 5km in miles lol" — or just !help', delay: 2200 },
+  { text: '', delay: 2400 },
+  { text: '> built by abhishek shah · abhishekshah.vercel.app', delay: 2500, color: 'muted' },
+  { text: '', delay: 2600 },
+  { text: '_', delay: 2700, blink: true },
 ]
 
 // Typing speed range per character
@@ -159,15 +167,17 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
           const visibleText = line.text.slice(0, typedChars[idx] ?? 0)
           const isBlinkLine = line.blink === true
 
+          // Color logic: accent lines, muted lines, or default secondary
+          let textColor = 'text-[var(--mm-text-secondary)]'
+          if (line.color === 'accent' || isPromptLine) {
+            textColor = 'text-[var(--mm-accent)]'
+          } else if (line.color === 'muted') {
+            textColor = 'text-[var(--mm-text-muted)]'
+          }
+
           return (
             <div key={idx} className="flex">
-              <span
-                className={
-                  isPromptLine
-                    ? 'text-[var(--mm-accent)]'
-                    : 'text-[var(--mm-text-secondary)]'
-                }
-              >
+              <span className={textColor}>
                 {visibleText}
               </span>
               {/* Blinking cursor on the blink line */}

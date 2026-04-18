@@ -1,15 +1,19 @@
 // ─────────────────────────────────────────────────────────────
-// MACHINE MIND — Shared TypeScript Types
+// MACHINE MIND — Shared TypeScript Types v4.0
 // Zero `any`. Every function is typed. Strict mode compliant.
 // ─────────────────────────────────────────────────────────────
 
 export type Role = 'user' | 'assistant' | 'system'
 
-export type DisplayType = 'text' | 'code' | 'table' | 'color_swatch' | 'error'
+export type DisplayType = 'text' | 'code' | 'table' | 'color_swatch' | 'error' | 'list'
 
 export type ToolStatus = 'idle' | 'running' | 'done' | 'error'
 
 export type AppMode = 'rule_engine' | 'ai_relay'
+
+export type Tone = 'frustrated' | 'curious' | 'playful' | 'urgent' | 'neutral'
+
+export type HedgeLevel = 0 | 1 | 2 | 3
 
 export type IntentCategory =
   | 'GREETING'
@@ -36,9 +40,33 @@ export type IntentCategory =
   | 'CHAIN_TOOL'
   | 'FOLLOW_UP'
   | 'SMALL_TALK'
+  | 'EMOTIONAL'
+  | 'CONFUSION'
+  | 'REPAIR'
+  | 'PRESENCE'
   | 'WORD'
   | 'JSON'
   | 'UNKNOWN'
+
+export interface ParsedInput {
+  raw: string
+  cleaned: string
+  originalIntent: string
+  corrections: Array<{ original: string; corrected: string }>
+  tone: Tone
+  hedgeLevel: HedgeLevel
+  confidence: number
+  emojiIntents: string[]
+  wasCorrected: boolean
+}
+
+export interface ClassifiedIntent {
+  intent: IntentCategory
+  confidence: number
+  matchedRuleId: string | null
+  toolHint: string | null
+  parsedInput: ParsedInput
+}
 
 export interface Message {
   id: string
@@ -49,6 +77,7 @@ export interface Message {
   execMs?: number
   tokens?: number
   timestamp: number
+  tone?: Tone
 }
 
 export interface ToolResult {
@@ -57,13 +86,7 @@ export interface ToolResult {
   displayType: DisplayType
   raw: string
   execMs: number
-}
-
-export interface ClassifiedIntent {
-  intent: IntentCategory
-  confidence: number
-  matchedRuleId: string | null
-  toolHint: string | null
+  witInjection?: string
 }
 
 export interface Rule {
@@ -74,6 +97,12 @@ export interface Rule {
   response: string
   setsContext: string | null
   tool: string | null
+}
+
+export interface ChainStep {
+  toolName: string
+  args: string
+  result?: ToolResult
 }
 
 export interface TokenTag {
@@ -172,6 +201,8 @@ export interface ApiChatRequest {
   messages: Array<{ role: Role; content: string }>
   context: string
   toolResults?: string
+  tone?: Tone
+  parsedInput?: ParsedInput
 }
 
 export interface ApiChatFallback {

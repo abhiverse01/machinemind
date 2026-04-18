@@ -1,10 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// MACHINE MIND — Intent Classifier
-// Rule-based matching with weighted keyword fallback.
+// MACHINE MIND — Intent Classifier v4.0
+// Full pipeline: GibberishParser → FuzzyMatcher → Tokenizer → Rules → Fallback
 // ─────────────────────────────────────────────────────────────
 
-import type { ClassifiedIntent, IntentCategory } from '../types'
+import type { ClassifiedIntent, IntentCategory, ParsedInput } from '../types'
 import { Tokenizer } from './tokenizer'
+import { GibberishParser } from './gibberish'
+import { FuzzyMatcher } from './fuzzy'
 import { RULES } from './rules'
 
 // ── Weighted keyword markers for fallback scoring ───────────
@@ -40,7 +42,6 @@ function mapRuleIdToIntent(ruleId: string): IntentCategory {
     case 'REGX':   return 'REGEX'
     case 'RAND':   return 'RANDOM'
     case 'MEM': {
-      // MEM rules that store → MEMORY_STORE, otherwise → MEMORY_RECALL
       if (ruleId === 'MEM_001' || ruleId === 'MEM_005' || ruleId === 'MEM_009') {
         return 'MEMORY_STORE'
       }
@@ -52,6 +53,8 @@ function mapRuleIdToIntent(ruleId: string): IntentCategory {
     case 'CHAIN':  return 'CHAIN_TOOL'
     case 'FOLL':   return 'FOLLOW_UP'
     case 'SMTK':   return 'SMALL_TALK'
+    case 'EMOT':   return 'EMOTIONAL'
+    case 'CONF':   return 'CONFUSION'
     case 'CMD':    return 'COMMAND'
     case 'EDGE':   return 'UNKNOWN'
     default:       return 'UNKNOWN'
@@ -72,18 +75,24 @@ function mapFallbackCategory(cat: string): IntentCategory {
   }
 }
 
-// ── Main classify function ──────────────────────────────────
+// ── Main classify function (v4.0 — uses ParsedInput from GibberishParser) ──
 export function classify(
   input: string,
   normalised: string,
   tokens: string[],
   contextFlags: Set<string>,
+  parsedInput?: ParsedInput,
 ): ClassifiedIntent {
 
   // ── Step 1: Check RULES array (sorted by priority, highest first) ──
   for (const rule of RULES) {
     // If the rule requires a context flag, verify it exists
-    if (rule.contextRequired !== null && !contextFlags.has(rule.contextRequired)) {
+    if (rule.contextRequired !== null && rule.contextRequired !== 'ANY' && !contextFlags.has(rule.contextRequired)) {
+      continue
+    }
+
+    // For 'ANY' contextRequired, require at least one flag
+    if (rule.contextRequired === 'ANY' && contextFlags.size === 0) {
       continue
     }
 
@@ -94,9 +103,20 @@ export function classify(
       if (pattern.test(normalised) || pattern.test(input)) {
         return {
           intent: mapRuleIdToIntent(rule.id),
-          confidence: 1.0,
+          confidence: parsedInput ? Math.min(1, parsedInput.confidence + 0.1) : 1.0,
           matchedRuleId: rule.id,
           toolHint: rule.tool,
+          parsedInput: parsedInput ?? {
+            raw: input,
+            cleaned: normalised,
+            originalIntent: normalised,
+            corrections: [],
+            tone: 'neutral',
+            hedgeLevel: 0,
+            confidence: 1.0,
+            emojiIntents: [],
+            wasCorrected: false,
+          },
         }
       }
     }
@@ -121,17 +141,14 @@ export function classify(
     let categoryScore = 0
 
     for (const marker of config.markers) {
-      // Check multi-word markers against full input
       if (marker.includes(' ')) {
         if (lowerInput.includes(marker)) {
           categoryScore += config.w
         }
       } else {
-        // Single-word markers: check against tokens for exact match
         if (lowerTokens.includes(marker)) {
           categoryScore += config.w
         }
-        // Also check if the marker appears in the raw input
         if (lowerInput.includes(marker) && marker.length > 1) {
           categoryScore += config.w * 0.5
         }
@@ -141,7 +158,6 @@ export function classify(
     scores[category] = categoryScore
   }
 
-  // Find the highest-scoring category
   let bestCategory: CategoryKey = 'QUESTION'
   let bestScore = 0
 
@@ -152,21 +168,28 @@ export function classify(
     }
   }
 
-  // If no category scored anything, return UNKNOWN with very low confidence
   if (bestScore === 0) {
     return {
       intent: 'UNKNOWN',
       confidence: 0.1,
       matchedRuleId: null,
       toolHint: null,
+      parsedInput: parsedInput ?? {
+        raw: input,
+        cleaned: normalised,
+        originalIntent: normalised,
+        corrections: [],
+        tone: 'neutral',
+        hedgeLevel: 0,
+        confidence: 0.1,
+        emojiIntents: [],
+        wasCorrected: false,
+      },
     }
   }
 
-  // Calculate confidence: normalize by max possible weight (sum of all marker weights)
-  // Confidence should be < 0.5 for keyword fallback
   const maxPossible = Object.values(INTENT_WEIGHTS).reduce((sum, cfg) => sum + cfg.w * cfg.markers.length, 0)
   const rawConfidence = bestScore / maxPossible
-  // Scale to be under 0.5 since this is the fallback
   const confidence = Math.min(0.45, rawConfidence * 2)
 
   return {
@@ -174,16 +197,46 @@ export function classify(
     confidence: Math.max(0.15, confidence),
     matchedRuleId: null,
     toolHint: null,
+    parsedInput: parsedInput ?? {
+      raw: input,
+      cleaned: normalised,
+      originalIntent: normalised,
+      corrections: [],
+      tone: 'neutral',
+      hedgeLevel: 0,
+      confidence: Math.max(0.15, confidence),
+      emojiIntents: [],
+      wasCorrected: false,
+    },
   }
 }
 
-// ── Convenience: full pipeline from raw input ───────────────
+// ── Convenience: full pipeline from raw input (v4.0) ────────
+// GibberishParser → FuzzyMatcher → Tokenizer → classify
 export function classifyInput(
   rawInput: string,
   contextFlags: Set<string> = new Set(),
 ): ClassifiedIntent {
+  // Step 1: GibberishParser — human noise parser (runs first!)
+  const parsedInput = GibberishParser.parse(rawInput)
+
+  // Step 2: FuzzyMatcher — typo correction
+  const fuzzyTokens = parsedInput.cleaned.split(/\s+/).filter(Boolean)
+  const { tokens: correctedTokens, corrections } = FuzzyMatcher.correctSentence(fuzzyTokens)
+
+  // Update parsedInput with corrections
+  const updatedParsedInput: ParsedInput = {
+    ...parsedInput,
+    corrections: [...parsedInput.corrections, ...corrections],
+    wasCorrected: parsedInput.wasCorrected || corrections.length > 0,
+    cleaned: correctedTokens.join(' '),
+  }
+
+  // Step 3: Tokenizer — normalize and tokenize
   const tokenizer = new Tokenizer()
-  const normalised = tokenizer.normalize(rawInput)
+  const normalised = tokenizer.normalize(updatedParsedInput.cleaned)
   const tokens = tokenizer.tokenize(normalised)
-  return classify(rawInput, normalised, tokens, contextFlags)
+
+  // Step 4: Classify
+  return classify(rawInput, normalised, tokens, contextFlags, updatedParsedInput)
 }
